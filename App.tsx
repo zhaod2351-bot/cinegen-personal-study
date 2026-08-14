@@ -6,7 +6,7 @@ import StageDirector from './components/StageDirector';
 import StageExport from './components/StageExport';
 import Dashboard from './components/Dashboard';
 import { ProjectState } from './types';
-import { Key, Save, CheckCircle, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Key, Save, CheckCircle, ArrowRight, ShieldCheck, Palette } from 'lucide-react';
 import { saveProjectToDB } from './services/storageService';
 import { setGlobalApiKey } from './services/geminiService';
 
@@ -32,11 +32,31 @@ const HomeLinks = () => (
   </div>
 );
 
+type Theme = 'paper' | 'mist' | 'night';
+
+const ThemePicker = ({ theme, setTheme }: { theme: Theme; setTheme: (theme: Theme) => void }) => (
+  <label className="fixed top-4 left-4 z-[80] flex items-center gap-2 rounded-lg border border-black/10 bg-white/85 px-3 py-2 text-[11px] font-mono text-zinc-700 shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-black/70 dark:text-zinc-300">
+    <Palette className="h-3.5 w-3.5" />
+    <span>Theme</span>
+    <select
+      aria-label="Theme color"
+      value={theme}
+      onChange={(event) => setTheme(event.target.value as Theme)}
+      className="cursor-pointer bg-transparent text-[11px] font-bold outline-none"
+    >
+      <option value="paper">Paper</option>
+      <option value="mist">Mist</option>
+      <option value="night">Night</option>
+    </select>
+  </label>
+);
+
 function App() {
   const [project, setProject] = useState<ProjectState | null>(null);
   const [apiKey, setApiKey] = useState<string>('');
   const [inputKey, setInputKey] = useState('');
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
+  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('cinegen_theme') as Theme) || 'paper');
   // A model key is optional in the personal study deployment. Users can
   // browse and edit projects before selecting an AI provider.
   const requiresApiKeyForEntry = false;
@@ -74,6 +94,11 @@ function App() {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
   }, [project]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('cinegen_theme', theme);
+  }, [theme]);
 
   const handleSaveKey = () => {
     if (!inputKey.trim()) return;
@@ -130,6 +155,7 @@ function App() {
   if (requiresApiKeyForEntry && !apiKey) {
     return (
       <>
+        <ThemePicker theme={theme} setTheme={setTheme} />
         <div className="h-screen bg-[#050505] flex flex-col items-center justify-center p-8 relative overflow-hidden">
           {/* Background Accents */}
           <div className="absolute top-0 right-0 p-64 bg-indigo-900/5 blur-[150px] rounded-full pointer-events-none"></div>
@@ -187,6 +213,7 @@ function App() {
   if (!project) {
     return (
       <>
+        <ThemePicker theme={theme} setTheme={setTheme} />
         <button
           onClick={apiKey ? handleClearKey : undefined}
           className="fixed top-4 right-4 z-50 text-[10px] text-zinc-600 transition-colors uppercase font-mono tracking-widest"
@@ -203,6 +230,7 @@ function App() {
   // Workspace View
   return (
     <div className="flex h-screen bg-[#121212] font-sans text-gray-100 selection:bg-indigo-500/30">
+      <ThemePicker theme={theme} setTheme={setTheme} />
       <Sidebar
         currentStage={project.stage}
         setStage={setStage}
