@@ -267,7 +267,7 @@ const StageScript: React.FC<Props> = ({ project, updateProject }) => {
               <h2 className="text-lg font-light text-white tracking-tight flex items-center gap-3">
                  <List className="w-5 h-5 text-zinc-400" />
                  拍摄清单
-                 <span className="text-xs text-zinc-600 font-mono uppercase tracking-wider ml-1">Script Manifest</span>
+                 <span className="text-xs text-zinc-600 font-mono tracking-wider ml-1">剧本清单</span>
               </h2>
               <div className="h-6 w-px bg-zinc-800"></div>
               
@@ -369,7 +369,7 @@ const StageScript: React.FC<Props> = ({ project, updateProject }) => {
                                 {/* Shot ID & Tech Data */}
                                 <div className="w-32 flex-shrink-0 flex flex-col gap-4">
                                    <div className="text-xs font-mono text-zinc-500 group-hover:text-white transition-colors">
-                                     SHOT {(project.shots.indexOf(shot) + 1).toString().padStart(3, '0')}
+                                     镜头 {(project.shots.indexOf(shot) + 1).toString().padStart(3, '0')}
                                    </div>
                                    
                                    <div className="flex flex-col gap-2">
@@ -410,7 +410,7 @@ const StageScript: React.FC<Props> = ({ project, updateProject }) => {
                                 {/* Prompt Preview */}
                                 <div className="w-64 hidden xl:block pl-6 border-l border-zinc-900">
                                    <div className="text-[10px] font-bold text-zinc-700 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                      <Aperture className="w-3 h-3" /> 画面提示词 (AI Prompt)
+                                      <Aperture className="w-3 h-3" /> 画面提示词
                                    </div>
                                    <p className="text-[10px] text-zinc-600 font-mono leading-relaxed line-clamp-4 hover:line-clamp-none hover:text-zinc-400 transition-all cursor-text bg-zinc-900/30 p-2 rounded">
                                      {shot.keyframes[0]?.visualPrompt}
