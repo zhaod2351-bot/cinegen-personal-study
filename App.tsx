@@ -241,7 +241,7 @@ function App() {
         projectName={project.title}
       />
 
-      <main className="ml-80 flex-1 h-screen overflow-hidden relative">
+      <main className="ml-64 flex-1 h-screen overflow-hidden relative">
         {renderStage()}
 
         {/* Save Status Indicator */}
