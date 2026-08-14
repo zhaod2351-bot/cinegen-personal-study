@@ -144,7 +144,7 @@ function App() {
       case 'import':
         return <StageImport project={project} updateProject={updateProject} />;
       case 'assets':
-        return <StageAssets project={project} updateProject={updateProject} />;
+        return <StageAssets project={project} updateProject={updateProject} onOpenDirector={() => setStage('director')} />;
       case 'director':
         return <StageDirector project={project} updateProject={updateProject} />;
       case 'export':
