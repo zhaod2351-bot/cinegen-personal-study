@@ -60,6 +60,7 @@ export interface AppDependencies {
   store: JobStore;
   runner: JobRunner;
   models: { text: string; image: "gpt-image-2" };
+  archiveRoot?: string;
   distPath?: string;
 }
 
@@ -69,7 +70,7 @@ export function createApp(deps: AppDependencies): Express {
   app.use(express.json({ limit: "25mb" }));
 
   app.get("/api/health", (_request, response) => {
-    response.json({ ok: true, models: deps.models });
+    response.json({ ok: true, models: deps.models, archiveRoot: deps.archiveRoot });
   });
 
   app.post("/api/director-plans", asyncRoute(async (request, response) => {

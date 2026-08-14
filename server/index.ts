@@ -19,6 +19,7 @@ const app = createApp({
   store,
   runner,
   models: { text: config.textModel, image: config.imageModel },
+  archiveRoot: config.assetRoot,
   distPath: resolve("dist"),
 });
 

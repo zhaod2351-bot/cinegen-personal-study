@@ -17,6 +17,16 @@ interface CreatedJob {
   status: AiJobStatus;
 }
 
+export interface AiHealth {
+  ok: boolean;
+  models: { text: string; image: "gpt-image-2" };
+  archiveRoot?: string;
+}
+
+export async function getAiHealth(signal?: AbortSignal): Promise<AiHealth> {
+  return requestJson("/api/health", { signal });
+}
+
 export async function createDirectorPlanJob(input: DirectorPlanInput): Promise<CreatedJob> {
   return requestJson("/api/director-plans", { method: "POST", body: JSON.stringify(input) });
 }

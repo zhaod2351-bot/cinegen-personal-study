@@ -105,12 +105,7 @@ export interface ProjectState {
   activeAiJobs: Record<string, ActiveAiJob>;
 }
 
-export interface DirectorClipState {
-  id: string;
-  title: string;
-  summary: string;
-  shots: unknown[];
-}
+export type DirectorClipState = import("./server/types").DirectorClip;
 
 export interface StoryboardVersion {
   id: string;

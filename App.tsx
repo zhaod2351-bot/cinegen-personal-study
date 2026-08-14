@@ -10,6 +10,7 @@ import { ProjectState } from './types';
 import { Key, Save, CheckCircle, ArrowRight, ShieldCheck, Palette } from 'lucide-react';
 import { getProjectById, saveProjectToDB, subscribeToProjectSync } from './services/storageService';
 import { setGlobalApiKey } from './services/geminiService';
+import { getAiHealth, type AiHealth } from './services/aiApiService';
 
 const HomeLinks = () => (
   <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-full border border-zinc-800 bg-black/70 px-4 py-2 text-[11px] font-mono text-zinc-400 backdrop-blur-sm">
@@ -58,6 +59,7 @@ function App() {
   const [inputKey, setInputKey] = useState('');
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('cinegen_theme') as Theme) || 'paper');
+  const [aiHealth, setAiHealth] = useState<AiHealth | null>(null);
   // A model key is optional in the personal study deployment. Users can
   // browse and edit projects before selecting an AI provider.
   const requiresApiKeyForEntry = false;
@@ -100,6 +102,12 @@ function App() {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem('cinegen_theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getAiHealth(controller.signal).then(setAiHealth).catch(() => setAiHealth(null));
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     return subscribeToProjectSync(async (event) => {
@@ -268,6 +276,14 @@ function App() {
           )}
         </div>
       </main>
+
+      <div className="fixed bottom-4 right-5 z-[70] rounded-md border border-[#ded5c8] bg-[#fffaf3]/95 px-3 py-2 text-[10px] text-[#75685d] shadow-sm backdrop-blur">
+        {aiHealth ? (
+          <span><b className="text-emerald-700">AI 服务已连接</b> · {aiHealth.models.text} · {aiHealth.models.image}{aiHealth.archiveRoot ? ` · ${aiHealth.archiveRoot}` : ''}</span>
+        ) : (
+          <span className="text-amber-700">AI 服务未启动：请运行 npm run dev:local</span>
+        )}
+      </div>
 
       <div className="lg:hidden fixed inset-0 bg-black z-[100] flex items-center justify-center p-8 text-center">
         <p className="text-zinc-500">为了获得最佳体验，请使用桌面浏览器访问。</p>

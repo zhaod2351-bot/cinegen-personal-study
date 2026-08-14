@@ -1,442 +1,202 @@
-import React, { useState, useEffect } from 'react';
-import { BrainCircuit, Wand2, ChevronRight, AlertCircle, Users, MapPin, List, TextQuote, Clock, BookOpen, PenTool, ArrowLeft, Languages, Aperture, AlignLeft } from 'lucide-react';
-import { ProjectState } from '../types';
-import { parseScriptToData, generateShotList } from '../services/geminiService';
+import React, { useEffect, useState } from "react";
+import { AlertCircle, BookOpen, CheckCircle2, LoaderCircle, Lock, Sparkles, X } from "lucide-react";
+import type { DirectorPlan } from "../server/types";
+import { createDirectorPlanJob, pollAiJob } from "../services/aiApiService";
+import type { Character, ProjectState, PropAsset, Scene, ScriptData, Shot } from "../types";
 
 interface Props {
   project: ProjectState;
   updateProject: (updates: Partial<ProjectState>) => void;
 }
 
-type TabMode = 'story' | 'script';
-
-const DURATION_OPTIONS = [
-  { label: '30秒 (广告)', value: '30s' },
-  { label: '60秒 (预告)', value: '60s' },
-  { label: '2分钟 (片花)', value: '120s' },
-  { label: '5分钟 (短片)', value: '300s' },
-  { label: '自定义', value: 'custom' }
-];
-
-const LANGUAGE_OPTIONS = [
-  { label: '中文 (Chinese)', value: '中文' },
-  { label: 'English (US)', value: 'English' },
-  { label: '日本語 (Japanese)', value: 'Japanese' },
-  { label: 'Français (French)', value: 'French' },
-  { label: 'Español (Spanish)', value: 'Spanish' }
-];
+type View = "source" | "breakdown";
 
 const StageScript: React.FC<Props> = ({ project, updateProject }) => {
-  const [activeTab, setActiveTab] = useState<TabMode>(project.scriptData ? 'script' : 'story');
-  
-  const [localScript, setLocalScript] = useState(project.rawScript);
-  const [localTitle, setLocalTitle] = useState(project.title);
-  const [localDuration, setLocalDuration] = useState(project.targetDuration || '60s');
-  const [localLanguage, setLocalLanguage] = useState(project.language || '中文');
-  const [customDurationInput, setCustomDurationInput] = useState('');
-  
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<View>(project.scriptData ? "breakdown" : "source");
+  const [script, setScript] = useState(project.rawScript);
+  const [preview, setPreview] = useState<DirectorPlan | null>(null);
+  const [status, setStatus] = useState<"idle" | "running" | "failed">("idle");
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    setLocalScript(project.rawScript);
-    setLocalTitle(project.title);
-    setLocalDuration(project.targetDuration || '60s');
-    setLocalLanguage(project.language || '中文');
-  }, [project.id]);
+  useEffect(() => setScript(project.rawScript), [project.id, project.rawScript]);
 
-  const handleDurationSelect = (val: string) => {
-    setLocalDuration(val);
-    if (val === 'custom') {
-      setCustomDurationInput('');
-    }
-  };
-
-  const getFinalDuration = () => {
-    return localDuration === 'custom' ? customDurationInput : localDuration;
-  };
-
-  const handleAnalyze = async () => {
-    if (!localScript.trim()) {
-      setError("请输入剧本内容。");
+  const analyze = async () => {
+    if (!script.trim()) {
+      setError("请先输入剧本内容。");
       return;
     }
-
-    const finalDuration = getFinalDuration();
-    if (!finalDuration) {
-      setError("请选择目标时长。");
-      return;
-    }
-
-    setIsProcessing(true);
-    setError(null);
+    setStatus("running");
+    setError("");
+    setProgress(5);
+    updateProject({ rawScript: script, isParsingScript: true });
     try {
+      const created = await createDirectorPlanJob({
+        lockedScript: script,
+        artStyle: project.artStyle || "日漫赛璐路",
+        tags: project.styleTags || [],
+        aspectRatio: project.aspectRatio || "16:9",
+        language: project.language || "简体中文",
+        targetDuration: project.targetDuration || "60s",
+      });
       updateProject({
-        title: localTitle,
-        rawScript: localScript,
-        targetDuration: finalDuration,
-        language: localLanguage,
-        isParsingScript: true
+        activeAiJobs: {
+          ...project.activeAiJobs,
+          directorPlan: { jobId: created.jobId, kind: "director-plan", status: created.status, progress: 0 },
+        },
       });
-
-      const creativeContext = `主画风：${project.artStyle || '未设置'}；作品标签：${(project.styleTags || []).join('、') || '未设置'}；画幅：${project.aspectRatio || '16:9'}；目标时长：${finalDuration}`;
-      const scriptData = await parseScriptToData(localScript, localLanguage, creativeContext);
-      
-      scriptData.targetDuration = finalDuration;
-      scriptData.language = localLanguage;
-      if (project.artStyle) scriptData.genre = `${project.artStyle}${project.styleTags?.length ? ` · ${project.styleTags.join('、')}` : ''}`;
-
-      if (localTitle && localTitle !== "未命名项目") {
-        scriptData.title = localTitle;
-      }
-
-      const shots = await generateShotList(scriptData);
-
-      updateProject({ 
-        scriptData, 
-        shots, 
-        isParsingScript: false,
-        title: scriptData.title 
-      });
-      
-      setActiveTab('script');
-
-    } catch (err: any) {
-      console.error(err);
-      setError(`错误: ${err.message || "AI 连接失败"}`);
+      const complete = await pollAiJob<DirectorPlan>(created.jobId);
+      setProgress(complete.progress);
+      if (complete.status === "failed" || !complete.result) throw new Error(complete.error || "AI 没有返回可用的剧本方案");
+      setPreview(complete.result);
+      setStatus("idle");
       updateProject({ isParsingScript: false });
-    } finally {
-      setIsProcessing(false);
+    } catch (cause) {
+      setStatus("failed");
+      setError(cause instanceof Error ? cause.message : "AI 剧本分析失败");
+      updateProject({ isParsingScript: false });
     }
   };
 
-  const renderStoryInput = () => (
-    <div className="flex h-full bg-[#050505] text-zinc-300">
-      
-      {/* Middle Column: Config Panel - Adjusted Width to w-96 */}
-      <div className="w-96 border-r border-zinc-800 flex flex-col bg-[#0A0A0A]">
-        {/* Header - Fixed Height 56px */}
-        <div className="h-14 px-5 border-b border-zinc-800 flex items-center justify-between shrink-0">
-            <h2 className="text-sm font-bold text-white tracking-wide flex items-center gap-2">
-              <BookOpen className="w-4 h-4 text-zinc-400" />
-              项目配置
-            </h2>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-            {/* Title Input */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">项目标题</label>
-              <input 
-                type="text"
-                value={localTitle}
-                onChange={(e) => setLocalTitle(e.target.value)}
-                className="w-full bg-[#141414] border border-zinc-800 text-white px-3 py-2.5 text-sm rounded-md focus:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-700 transition-all placeholder:text-zinc-700"
-                placeholder="输入项目名称..."
-              />
-            </div>
-
-            {/* Language Selection */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-                输出语言
-              </label>
-              <div className="relative">
-                <select
-                  value={localLanguage}
-                  onChange={(e) => setLocalLanguage(e.target.value)}
-                  className="w-full bg-[#141414] border border-zinc-800 text-white px-3 py-2.5 text-sm rounded-md appearance-none focus:border-zinc-600 focus:outline-none transition-all cursor-pointer"
-                >
-                  {LANGUAGE_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-                <div className="absolute right-3 top-3 pointer-events-none">
-                   <ChevronRight className="w-4 h-4 text-zinc-600 rotate-90" />
-                </div>
-              </div>
-            </div>
-
-            {/* Duration Selection */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-                目标时长
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {DURATION_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => handleDurationSelect(opt.value)}
-                    className={`px-2 py-2.5 text-[11px] font-medium rounded-md transition-all text-center border ${
-                      localDuration === opt.value
-                        ? 'bg-zinc-100 text-black border-zinc-100 shadow-sm'
-                        : 'bg-transparent border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-              {localDuration === 'custom' && (
-                <div className="pt-1">
-                  <input 
-                    type="text"
-                    value={customDurationInput}
-                    onChange={(e) => setCustomDurationInput(e.target.value)}
-                    className="w-full bg-[#141414] border border-zinc-800 text-white px-3 py-2.5 text-sm rounded-md focus:border-zinc-600 focus:outline-none font-mono placeholder:text-zinc-700"
-                    placeholder="输入时长 (如: 90s, 3m)"
-                  />
-                </div>
-              )}
-            </div>
-        </div>
-
-        {/* Footer Action */}
-        <div className="p-6 border-t border-zinc-800 bg-[#0A0A0A]">
-           <button
-              onClick={handleAnalyze}
-              disabled={isProcessing}
-              className={`w-full py-3.5 font-bold text-xs tracking-widest uppercase rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg ${
-                isProcessing 
-                  ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
-                  : 'bg-white text-black hover:bg-zinc-200 shadow-white/5'
-              }`}
-            >
-              {isProcessing ? (
-                <>
-                  <BrainCircuit className="w-4 h-4 animate-spin" />
-                  智能分析中...
-                </>
-              ) : (
-                <>
-                  <Wand2 className="w-4 h-4" />
-                  生成分镜脚本
-                </>
-              )}
-            </button>
-            {error && (
-              <div className="mt-4 p-3 bg-red-900/10 border border-red-900/50 text-red-500 text-xs rounded flex items-center gap-2">
-                <AlertCircle className="w-3 h-3 flex-shrink-0" />
-                {error}
-              </div>
-            )}
-        </div>
-      </div>
-
-      {/* Right: Text Editor - Optimized */}
-      <div className="flex-1 flex flex-col bg-[#050505] relative">
-        <div className="h-14 border-b border-zinc-800 flex items-center justify-between px-8 bg-[#050505] shrink-0">
-           <div className="flex items-center gap-3">
-              <div className="w-1.5 h-1.5 rounded-full bg-zinc-700"></div>
-              <span className="text-xs font-bold text-zinc-400">剧本编辑器</span>
-           </div>
-           <span className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest">MARKDOWN SUPPORTED</span>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto">
-           <div className="max-w-3xl mx-auto h-full flex flex-col py-12 px-8">
-              <textarea
-                  value={localScript}
-                  onChange={(e) => setLocalScript(e.target.value)}
-                  className="flex-1 bg-transparent text-zinc-200 font-serif text-lg leading-loose focus:outline-none resize-none placeholder:text-zinc-800 selection:bg-zinc-700"
-                  placeholder="在此输入故事大纲或直接粘贴剧本..."
-                  spellCheck={false}
-              />
-           </div>
-        </div>
-
-        {/* Editor Status Footer */}
-        <div className="h-8 border-t border-zinc-900 bg-[#050505] px-4 flex items-center justify-end gap-4 text-[10px] text-zinc-600 font-mono select-none">
-           <span>{localScript.length} 字符</span>
-           <span>{localScript.split('\n').length} 行</span>
-           <div className="flex items-center gap-1.5">
-             <div className={`w-1.5 h-1.5 rounded-full ${localScript === project.rawScript ? 'bg-emerald-800' : 'bg-amber-600'}`}></div>
-             {localScript === project.rawScript ? '已自动保存' : '待保存'}
-           </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderScriptBreakdown = () => {
-    const scenesList = project.scriptData?.scenes || [];
-
-    return (
-      <div className="flex flex-col h-full bg-[#050505] animate-in fade-in duration-500">
-        {/* Header */}
-        <div className="h-16 px-6 border-b border-zinc-800 bg-[#080808] flex items-center justify-between shrink-0 z-20">
-           <div className="flex items-center gap-6">
-              <h2 className="text-lg font-light text-white tracking-tight flex items-center gap-3">
-                 <List className="w-5 h-5 text-zinc-400" />
-                 拍摄清单
-                 <span className="text-xs text-zinc-600 font-mono tracking-wider ml-1">剧本清单</span>
-              </h2>
-              <div className="h-6 w-px bg-zinc-800"></div>
-              
-              <div className="flex items-center gap-4">
-                  <div className="flex flex-col">
-                      <span className="text-[10px] text-zinc-600 uppercase tracking-widest">项目</span>
-                      <span className="text-sm text-zinc-200 font-medium">{project.scriptData?.title}</span>
-                  </div>
-                  <div className="flex flex-col">
-                      <span className="text-[10px] text-zinc-600 uppercase tracking-widest">时长</span>
-                      <span className="text-sm font-mono text-zinc-400">{project.targetDuration}</span>
-                  </div>
-              </div>
-           </div>
-           
-           <button 
-             onClick={() => setActiveTab('story')}
-             className="text-xs font-bold text-zinc-400 hover:text-white flex items-center gap-2 px-4 py-2 hover:bg-zinc-800 rounded-lg transition-all"
-           >
-             <ArrowLeft className="w-3 h-3" />
-             返回编辑
-           </button>
-        </div>
-  
-        {/* Content Split View */}
-        <div className="flex-1 overflow-hidden flex">
-           
-           {/* Sidebar: Index */}
-           <div className="w-72 border-r border-zinc-800 bg-[#0A0A0A] flex flex-col hidden lg:flex">
-              <div className="p-6 border-b border-zinc-900">
-                 <h3 className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-4 flex items-center gap-2">
-                   <TextQuote className="w-3 h-3" /> 故事梗概
-                 </h3>
-                 <p className="text-xs text-zinc-400 italic leading-relaxed font-serif">"{project.scriptData?.logline}"</p>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-6 space-y-8">
-                  {/* Characters */}
-                  <section>
-                    <h3 className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-4 flex items-center gap-2">
-                       <Users className="w-3 h-3" /> 演员表
-                    </h3>
-                    <div className="space-y-2">
-                       {project.scriptData?.characters.map(c => (
-                         <div key={c.id} className="flex justify-between items-center group cursor-default p-2 rounded hover:bg-zinc-900/50 transition-colors">
-                            <span className="text-sm text-zinc-300 font-medium group-hover:text-white">{c.name}</span>
-                            <span className="text-[10px] text-zinc-600 font-mono">{c.gender}</span>
-                         </div>
-                       ))}
-                    </div>
-                  </section>
-
-                  {/* Scenes */}
-                  <section>
-                    <h3 className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-4 flex items-center gap-2">
-                       <MapPin className="w-3 h-3" /> 场景列表
-                    </h3>
-                    <div className="space-y-1">
-                       {scenesList.map((s) => (
-                         <div key={s.id} className="flex items-center gap-3 text-xs text-zinc-400 group cursor-default p-2 rounded hover:bg-zinc-900/50 transition-colors">
-                            <div className="w-1.5 h-1.5 bg-zinc-700 rounded-full group-hover:bg-zinc-400 transition-colors"></div>
-                            <span className="truncate group-hover:text-zinc-200">{s.location}</span>
-                         </div>
-                       ))}
-                    </div>
-                  </section>
-              </div>
-           </div>
-  
-           {/* Main: Script & Shots */}
-           <div className="flex-1 overflow-y-auto bg-[#050505] p-0">
-              <div className="max-w-5xl mx-auto pb-20">
-                 {project.scriptData?.scenes.map((scene, index) => {
-                   const sceneShots = project.shots.filter(s => s.sceneId === scene.id);
-                   if (sceneShots.length === 0) return null;
-
-                   return (
-                     <div key={scene.id} className="border-b border-zinc-800">
-                        {/* Scene Header strip */}
-                        <div className="sticky top-0 z-10 bg-[#080808]/95 backdrop-blur border-y border-zinc-800 px-8 py-5 flex items-center justify-between shadow-lg shadow-black/20">
-                           <div className="flex items-baseline gap-4">
-                              <span className="text-3xl font-bold text-white/10 font-mono">{(index + 1).toString().padStart(2, '0')}</span>
-                              <h3 className="text-lg font-bold text-white uppercase tracking-wider">
-                                 {scene.location}
-                              </h3>
-                           </div>
-                           <div className="flex gap-4 text-[10px] font-mono uppercase tracking-widest text-zinc-500">
-                              <span className="flex items-center gap-1.5"><Clock className="w-3 h-3"/> {scene.time}</span>
-                              <span className="text-zinc-700">|</span>
-                              <span>{scene.atmosphere}</span>
-                           </div>
-                        </div>
-  
-                        {/* Shot Rows */}
-                        <div className="divide-y divide-zinc-800/50">
-                           {sceneShots.map((shot, sIdx) => (
-                             <div key={shot.id} className="group bg-[#050505] hover:bg-[#0A0A0A] transition-colors p-8 flex gap-8">
-                                
-                                {/* Shot ID & Tech Data */}
-                                <div className="w-32 flex-shrink-0 flex flex-col gap-4">
-                                   <div className="text-xs font-mono text-zinc-500 group-hover:text-white transition-colors">
-                                     镜头 {(project.shots.indexOf(shot) + 1).toString().padStart(3, '0')}
-                                   </div>
-                                   
-                                   <div className="flex flex-col gap-2">
-                                     <div className="px-2 py-1 bg-zinc-900 border border-zinc-800 text-[10px] font-mono text-zinc-400 uppercase text-center rounded">
-                                       {shot.shotSize || 'MED'}
-                                     </div>
-                                     <div className="px-2 py-1 bg-zinc-900 border border-zinc-800 text-[10px] font-mono text-zinc-400 uppercase text-center rounded">
-                                       {shot.cameraMovement}
-                                     </div>
-                                   </div>
-                                </div>
-
-                                {/* Main Action */}
-                                <div className="flex-1 space-y-4">
-                                   <p className="text-zinc-200 text-sm leading-7 font-medium max-w-2xl">
-                                     {shot.actionSummary}
-                                   </p>
-                                   
-                                   {shot.dialogue && (
-                                      <div className="pl-6 border-l-2 border-zinc-800 group-hover:border-zinc-600 transition-colors py-1">
-                                         <p className="text-zinc-400 font-serif italic text-sm">"{shot.dialogue}"</p>
-                                      </div>
-                                   )}
-                                   
-                                   {/* Tags/Characters */}
-                                   <div className="flex flex-wrap gap-2 pt-2 opacity-50 group-hover:opacity-100 transition-opacity">
-                                      {shot.characters.map(cid => {
-                                         const char = project.scriptData?.characters.find(c => c.id === cid);
-                                         return char ? (
-                                           <span key={cid} className="text-[10px] uppercase font-bold tracking-wider text-zinc-500 border border-zinc-800 px-2 py-0.5 rounded-full bg-zinc-900">
-                                              {char.name}
-                                           </span>
-                                         ) : null;
-                                      })}
-                                   </div>
-                                </div>
-
-                                {/* Prompt Preview */}
-                                <div className="w-64 hidden xl:block pl-6 border-l border-zinc-900">
-                                   <div className="text-[10px] font-bold text-zinc-700 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                      <Aperture className="w-3 h-3" /> 画面提示词
-                                   </div>
-                                   <p className="text-[10px] text-zinc-600 font-mono leading-relaxed line-clamp-4 hover:line-clamp-none hover:text-zinc-400 transition-all cursor-text bg-zinc-900/30 p-2 rounded">
-                                     {shot.keyframes[0]?.visualPrompt}
-                                   </p>
-                                </div>
-
-                             </div>
-                           ))}
-                        </div>
-                     </div>
-                   );
-                 })}
-              </div>
-           </div>
-        </div>
-      </div>
-    );
+  const applyPlan = () => {
+    if (!preview) return;
+    const converted = convertDirectorPlan(project, preview);
+    updateProject({
+      ...converted,
+      rawScript: preview.polishedScript,
+      directorClips: preview.clips,
+      isParsingScript: false,
+      activeAiJobs: {},
+    });
+    setScript(preview.polishedScript);
+    setPreview(null);
+    setView("breakdown");
   };
 
   return (
-    <div className="h-full bg-[#050505]">
-      {activeTab === 'story' ? renderStoryInput() : renderScriptBreakdown()}
+    <div className="flex h-full flex-col bg-[#fffaf3] text-[#2c241f]">
+      <header className="flex h-[76px] shrink-0 items-center justify-between border-b border-[#ded5c8] px-8">
+        <div className="flex items-center gap-2 rounded-lg border border-[#ded5c8] bg-[#f7f0e5] p-1">
+          <button onClick={() => setView("source")} className={`rounded-md px-6 py-3 text-sm ${view === "source" ? "bg-white shadow-sm" : "text-[#75685d]"}`}>
+            <BookOpen className="mr-2 inline h-4 w-4" />原文
+          </button>
+          <button onClick={() => setView("breakdown")} disabled={!project.scriptData} className={`rounded-md px-6 py-3 text-sm ${view === "breakdown" ? "bg-white shadow-sm" : "text-[#75685d] disabled:opacity-40"}`}>
+            镜头剧本
+          </button>
+        </div>
+        <button onClick={analyze} disabled={status === "running"} className="flex items-center gap-2 rounded-md bg-[#c4510a] px-5 py-3 text-sm font-semibold text-white shadow-sm disabled:opacity-60">
+          {status === "running" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          AI 剧本分析
+        </button>
+      </header>
+
+      {status === "running" && (
+        <div className="border-b border-[#e6d5bd] bg-[#fff1d7] px-8 py-3 text-sm text-[#8a4a18]">
+          <LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" />正在规划镜头 <span className="ml-2 text-xs">{progress}%</span>
+        </div>
+      )}
+      {error && (
+        <div className="mx-8 mt-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <AlertCircle className="h-4 w-4" />{error}
+          {status === "failed" && <button onClick={analyze} className="ml-auto underline">重试</button>}
+        </div>
+      )}
+
+      {view === "source" ? (
+        <div className="flex min-h-0 flex-1">
+          <aside className="w-[310px] shrink-0 border-r border-[#ded5c8] p-7">
+            <h2 className="mb-6 text-lg font-semibold">项目配置</h2>
+            <Info label="作品名称" value={project.title} />
+            <Info label="艺术风格" value={project.artStyle || "未设置"} />
+            <Info label="作品标签" value={(project.styleTags || []).join("、") || "未设置"} />
+            <Info label="画幅 / 时长" value={`${project.aspectRatio || "16:9"} · ${project.targetDuration || "60s"}`} />
+            <div className="mt-8 rounded-lg border border-[#e3d6c5] bg-white p-4 text-xs leading-6 text-[#837467]">
+              <Lock className="mb-2 h-4 w-4 text-[#c4510a]" />
+              AI 将先润色剧本，再输出人物、场景、道具、剪辑和镜头。确认后作为资产库与导演台的数据源。
+            </div>
+          </aside>
+          <main className="min-w-0 flex-1 overflow-auto p-10">
+            <div className="mx-auto flex h-full max-w-[1050px] flex-col rounded-xl border border-[#ded5c8] bg-white p-10 shadow-sm">
+              <div className="mb-5 flex items-center justify-between border-b border-[#e8dfd2] pb-5">
+                <h1 className="text-2xl font-semibold">剧本</h1>
+                <span className="text-xs text-[#9b8c7e]">{script.length} 字</span>
+              </div>
+              <textarea aria-label="剧本内容" value={script} onChange={(event) => setScript(event.target.value)} className="min-h-[420px] flex-1 resize-none bg-transparent font-serif text-[17px] leading-9 outline-none" placeholder="请输入 1-1 剧本…" />
+            </div>
+          </main>
+        </div>
+      ) : (
+        <Breakdown project={project} />
+      )}
+
+      {preview && (
+        <div role="dialog" aria-label="AI 剧本分析预览" className="fixed inset-0 z-[120] grid place-items-center bg-black/50 p-6">
+          <div className="max-h-[88vh] w-full max-w-4xl overflow-auto rounded-xl bg-[#fffaf3] p-8 shadow-2xl">
+            <div className="mb-5 flex items-start justify-between">
+              <div><h2 className="text-2xl font-semibold">AI 剧本分析预览</h2><p className="mt-2 text-sm text-[#817366]">{preview.summary}</p></div>
+              <button aria-label="关闭" onClick={() => setPreview(null)}><X /></button>
+            </div>
+            <p className="max-h-40 overflow-auto rounded-lg border border-[#e1d5c6] bg-white p-4 text-sm leading-7">{preview.polishedScript}</p>
+            <div className="mt-5 grid grid-cols-3 gap-4">
+              {(["character", "scene", "prop"] as const).map((type) => (
+                <section key={type} className="rounded-lg bg-[#f5eadb] p-4"><b>{type === "character" ? "人物" : type === "scene" ? "场景" : "道具"}</b><ul className="mt-3 space-y-2 text-sm">{preview.assets.filter((item) => item.type === type).map((item) => <li key={`${type}:${item.id}`} className="rounded bg-white p-2">{item.name}</li>)}</ul></section>
+              ))}
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button onClick={() => setPreview(null)} className="rounded-md border border-[#d8cbbb] bg-white px-5 py-3">返回修改</button>
+              <button onClick={applyPlan} className="flex items-center gap-2 rounded-md bg-[#c4510a] px-5 py-3 font-semibold text-white"><CheckCircle2 className="h-4 w-4" />确认并锁定剧本</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
+const Info = ({ label, value }: { label: string; value: string }) => <div className="mb-5"><div className="mb-1 text-xs text-[#9b8c7e]">{label}</div><div className="text-sm">{value}</div></div>;
+
+const Breakdown = ({ project }: { project: ProjectState }) => (
+  <div className="flex min-h-0 flex-1">
+    <aside className="w-[300px] shrink-0 overflow-auto border-r border-[#ded5c8] p-7">
+      <h3 className="mb-3 font-semibold">故事概要</h3><p className="text-sm leading-7 text-[#74675d]">{project.scriptData?.logline}</p>
+      <h3 className="mb-3 mt-8 font-semibold">演员表</h3>{project.scriptData?.characters.map((item) => <div className="mb-2 flex justify-between text-sm" key={item.id}><span>{item.name}</span><span className="text-[#9b8c7e]">{item.gender}</span></div>)}
+      <h3 className="mb-3 mt-8 font-semibold">场景列表</h3>{project.scriptData?.scenes.map((item) => <div className="mb-2 text-sm" key={item.id}>• {item.location}</div>)}
+    </aside>
+    <main className="min-w-0 flex-1 overflow-auto">
+      {project.shots.map((shot, index) => <article key={shot.id} className="grid grid-cols-[150px_1fr_260px] gap-7 border-b border-[#ded5c8] p-8"><div className="text-sm">镜头 {(index + 1).toString().padStart(3, "0")}<div className="mt-4 rounded border border-[#ded5c8] bg-[#f7f0e5] p-2 text-center text-xs">{shot.shotSize}</div><div className="mt-2 rounded border border-[#ded5c8] bg-[#f7f0e5] p-2 text-center text-xs">{shot.cameraMovement}</div></div><div><p className="leading-8">{shot.actionSummary}</p>{shot.dialogue && <p className="mt-4 border-l-2 border-[#d8cbbb] pl-4 font-serif italic">“{shot.dialogue}”</p>}</div><div className="border-l border-[#ded5c8] pl-6"><b className="text-sm">画面提示词</b><p className="mt-3 rounded bg-[#eee8df] p-3 text-xs leading-6 text-[#86786c]">{shot.keyframes[0]?.visualPrompt}</p></div></article>)}
+    </main>
+  </div>
+);
+
+export function convertDirectorPlan(project: ProjectState, plan: DirectorPlan): Pick<ProjectState, "scriptData" | "shots" | "title"> {
+  const oldCharacters = project.scriptData?.characters || [];
+  const oldScenes = project.scriptData?.scenes || [];
+  const oldProps = project.scriptData?.props || [];
+  const characters: Character[] = plan.assets.filter((asset) => asset.type === "character").map((asset) => {
+    const old = oldCharacters.find((item) => item.id === asset.id || item.name === asset.name);
+    return { id: asset.id, name: asset.name, gender: old?.gender || "未知", age: old?.age || "未知", personality: asset.description, visualPrompt: asset.description, referenceImage: old?.referenceImage, tags: asset.tags || old?.tags, variations: old?.variations || [] };
+  });
+  const scenes: Scene[] = plan.assets.filter((asset) => asset.type === "scene").map((asset) => {
+    const old = oldScenes.find((item) => item.id === asset.id || item.location === asset.name);
+    return { id: asset.id, location: asset.name, time: old?.time || "未知", atmosphere: asset.description, visualPrompt: asset.description, referenceImage: old?.referenceImage, tags: asset.tags || old?.tags };
+  });
+  const props: PropAsset[] = plan.assets.filter((asset) => asset.type === "prop").map((asset) => {
+    const old = oldProps.find((item) => item.id === asset.id || item.name === asset.name);
+    return { id: asset.id, name: asset.name, description: asset.description, visualPrompt: asset.description, referenceImage: old?.referenceImage, tags: asset.tags || old?.tags };
+  });
+  const shots: Shot[] = plan.clips.flatMap((clip) => clip.shots.map((shot) => ({
+    id: shot.id,
+    sceneId: shot.assets.find((asset) => asset.type === "scene")?.id || scenes[0]?.id || "scene-default",
+    actionSummary: shot.action,
+    dialogue: shot.audioItems.find((audio) => audio.type === "对白")?.content,
+    cameraMovement: shot.cameraMovement,
+    shotSize: shot.shotSize,
+    characters: shot.assets.filter((asset) => asset.type === "character").map((asset) => asset.id),
+    props: shot.assets.filter((asset) => asset.type === "prop").map((asset) => asset.id),
+    keyframes: [{ id: `${shot.id}-start`, type: "start" as const, visualPrompt: shot.visualPrompt, status: "pending" as const }],
+  })));
+  const scriptData: ScriptData = { title: project.title, genre: [project.artStyle, ...(project.styleTags || [])].filter(Boolean).join(" · "), logline: plan.summary, targetDuration: project.targetDuration, language: project.language, characters, scenes, props, storyParagraphs: plan.clips.map((clip, index) => ({ id: index + 1, text: clip.summary, sceneRefId: clip.shots[0]?.assets.find((asset) => asset.type === "scene")?.id || scenes[0]?.id || "" })) };
+  return { scriptData, shots, title: project.title };
+}
 
 export default StageScript;
