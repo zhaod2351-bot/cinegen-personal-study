@@ -37,6 +37,9 @@ function App() {
   const [apiKey, setApiKey] = useState<string>('');
   const [inputKey, setInputKey] = useState('');
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
+  // A model key is optional in the personal study deployment. Users can
+  // browse and edit projects before selecting an AI provider.
+  const requiresApiKeyForEntry = false;
 
   // Ref to hold debounce timer
   const saveTimeoutRef = useRef<any>(null);
@@ -124,7 +127,7 @@ function App() {
   };
 
   // API Key Entry Screen (Industrial Design)
-  if (!apiKey) {
+  if (requiresApiKeyForEntry && !apiKey) {
     return (
       <>
         <div className="h-screen bg-[#050505] flex flex-col items-center justify-center p-8 relative overflow-hidden">
@@ -184,8 +187,12 @@ function App() {
   if (!project) {
     return (
       <>
-        <button onClick={handleClearKey} className="fixed top-4 right-4 z-50 text-[10px] text-zinc-600 hover:text-red-500 transition-colors uppercase font-mono tracking-widest">
-          Sign Out
+        <button
+          onClick={apiKey ? handleClearKey : undefined}
+          className="fixed top-4 right-4 z-50 text-[10px] text-zinc-600 transition-colors uppercase font-mono tracking-widest"
+          title={apiKey ? 'Remove locally saved model key' : 'Model can be configured later'}
+        >
+          {apiKey ? 'Clear model key' : 'Model optional'}
         </button>
         <Dashboard onOpenProject={handleOpenProject} />
         <HomeLinks />
