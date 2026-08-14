@@ -42,6 +42,18 @@ export class JobRunner {
     await this.active.get(id);
   }
 
+  async retry(id: string): Promise<AiJob> {
+    const original = await this.options.store.get(id);
+    if (!original) throw new Error(`Job not found: ${id}`);
+    const retried = await this.options.store.retry(id);
+    if (retried.kind === "director-plan") {
+      this.start(retried.id, () => this.executeDirectorPlan(retried.id, retried.payload as DirectorPlanInput));
+    } else {
+      this.start(retried.id, () => this.executeStoryboard(retried.id, retried.payload as StoryboardInput));
+    }
+    return retried;
+  }
+
   private start(id: string, work: () => Promise<void>): void {
     const promise = work().finally(() => this.active.delete(id));
     this.active.set(id, promise);
