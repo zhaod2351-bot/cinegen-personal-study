@@ -1,5 +1,7 @@
 # CineGen AI Director (AI 漫剧工场)
 
+> 个人学习版已加入 OpenAI 本地自动化流程：GPT 剧本分析与导演台拆解、`gpt-image-2` 六格故事板生成、失败重试、版本保留，以及按中文项目/场次目录保存到 D 盘。配置说明见 [OpenAI 本地自动化接入](./docs/openai-local-setup.md)。
+
 > 同时欢迎试用一站式的漫剧制作平台 [AniKuku AI 漫剧制作平台](https://anikuku.com/?github)  - use `CINEGEN50OFF` checkout for 50%OFF。
 > **AniKuku 提供的优惠码，首次购买，结账时使用 `CINEGEN50OFF` 可以获得 50% 折扣（5 折）**
 
