@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import StageScript from './components/StageScript';
+import StageImport from './components/StageImport';
 import StageAssets from './components/StageAssets';
 import StageDirector from './components/StageDirector';
 import StageExport from './components/StageExport';
@@ -119,7 +120,7 @@ function App() {
     setProject(prev => prev ? ({ ...prev, ...updates }) : null);
   };
 
-  const setStage = (stage: 'script' | 'assets' | 'director' | 'export') => {
+  const setStage = (stage: 'script' | 'import' | 'assets' | 'director' | 'export') => {
     updateProject({ stage });
   };
 
@@ -140,6 +141,8 @@ function App() {
     switch (project.stage) {
       case 'script':
         return <StageScript project={project} updateProject={updateProject} />;
+      case 'import':
+        return <StageImport project={project} updateProject={updateProject} />;
       case 'assets':
         return <StageAssets project={project} updateProject={updateProject} />;
       case 'director':

@@ -72,7 +72,7 @@ export interface ProjectState {
   title: string;
   createdAt: number;
   lastModified: number;
-  stage: 'script' | 'assets' | 'director' | 'export';
+  stage: 'script' | 'import' | 'assets' | 'director' | 'export';
   
   // Script Phase Data
   rawScript: string;
