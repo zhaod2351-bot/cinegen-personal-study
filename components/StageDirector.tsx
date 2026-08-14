@@ -475,7 +475,8 @@ const StageDirector: React.FC<Props> = ({ project, updateProject }) => {
                            
                            <div className="space-y-3">
                                <div className="bg-[#141414] p-4 rounded-lg border border-zinc-800">
-                                   <p className="text-zinc-200 text-sm leading-relaxed">{activeShot.actionSummary}</p>
+                                   <label className="block text-[10px] text-zinc-500 mb-2">画面与动作（点击后直接编辑）</label>
+                                   <textarea defaultValue={activeShot.actionSummary} onBlur={e => updateShot(activeShot.id, shot => ({ ...shot, actionSummary: e.target.value }))} className="w-full min-h-24 bg-transparent text-zinc-200 text-sm leading-relaxed outline-none resize-y" />
                                </div>
                                
                                {activeShot.dialogue && (
@@ -483,7 +484,7 @@ const StageDirector: React.FC<Props> = ({ project, updateProject }) => {
                                       <MessageSquare className="w-4 h-4 text-zinc-600 mt-0.5" />
                                       <div>
                                           <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">对白</p>
-                                          <p className="text-indigo-200 font-serif italic text-sm">"{activeShot.dialogue}"</p>
+                                          <textarea defaultValue={activeShot.dialogue} onBlur={e => updateShot(activeShot.id, shot => ({ ...shot, dialogue: e.target.value }))} className="w-full bg-transparent text-indigo-200 font-serif italic text-sm outline-none resize-y" />
                                       </div>
                                   </div>
                                )}
