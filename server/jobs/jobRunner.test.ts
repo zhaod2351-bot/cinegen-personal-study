@@ -1,0 +1,117 @@
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import type { DirectorPlan, DirectorPlanInput, StoryboardInput } from "../types";
+import type { AiGateway } from "../openaiGateway";
+import { JobRunner } from "./jobRunner";
+import { JobStore } from "./jobStore";
+
+const directorInput: DirectorPlanInput = {
+  lockedScript: "小狐狸跑进废墟。",
+  artStyle: "日漫赛璐路",
+  tags: ["末世", "悬疑"],
+  aspectRatio: "16:9",
+  language: "简体中文",
+  targetDuration: "60",
+};
+
+const validPlan: DirectorPlan = {
+  polishedScript: "小狐狸踉跄地跑进废墟。",
+  summary: "废墟逃生",
+  assets: [{ id: "fox", type: "character", name: "小狐狸", description: "受伤的冒险者" }],
+  clips: [{
+    id: "clip-1",
+    title: "逃生",
+    summary: "小狐狸穿过废墟",
+    shots: [{
+      id: "shot-1",
+      title: "冲入废墟",
+      shotSize: "远景 WS",
+      cameraMovement: "缓慢推进",
+      duration: 5,
+      action: "小狐狸向前奔跑",
+      visualPrompt: "废墟街道，逆光",
+      audioItems: [],
+      assets: [{ type: "character", id: "fox" }],
+    }],
+  }],
+};
+
+function storyboardFixture(root: string): StoryboardInput & { archiveRoot: string } {
+  return {
+    projectId: "project-1",
+    projectTitle: "余烬回声",
+    sceneName: "场次 01",
+    clip: validPlan.clips[0],
+    assets: validPlan.assets,
+    artStyle: "日漫赛璐路",
+    tags: ["末世"],
+    aspectRatio: "16:9",
+    version: 1,
+    archiveRoot: root,
+  };
+}
+
+class FakeGateway implements AiGateway {
+  failures = 0;
+  lastImageModel?: string;
+
+  constructor(private readonly failCount = 0) {}
+
+  async createDirectorPlan(): Promise<unknown> {
+    return validPlan;
+  }
+
+  async generateStoryboard(_input: StoryboardInput, model: "gpt-image-2"): Promise<Buffer> {
+    this.lastImageModel = model;
+    if (this.failures < this.failCount) {
+      this.failures += 1;
+      const error = new Error("temporary unavailable") as Error & { status: number };
+      error.status = 503;
+      throw error;
+    }
+    return Buffer.from("webp-image");
+  }
+}
+
+async function setup(gateway: AiGateway) {
+  const root = await mkdtemp(join(tmpdir(), "cinegen-runner-"));
+  const store = new JobStore(join(root, "jobs"));
+  const runner = new JobRunner({ store, gateway, archiveRoot: join(root, "archive"), retryDelayMs: 0 });
+  return { root, store, runner };
+}
+
+describe("JobRunner", () => {
+  it("validates and completes a director plan job", async () => {
+    const { store, runner } = await setup(new FakeGateway());
+    const job = await runner.runDirectorPlan(directorInput);
+    await runner.waitFor(job.id);
+
+    const complete = await store.get(job.id);
+    expect(complete?.status).toBe("completed");
+    expect((complete?.result as DirectorPlan).polishedScript).toContain("踉跄");
+  });
+
+  it("archives a generated gpt-image-2 storyboard", async () => {
+    const gateway = new FakeGateway();
+    const { root, store, runner } = await setup(gateway);
+    const job = await runner.runStoryboard(storyboardFixture(join(root, "archive")));
+    await runner.waitFor(job.id);
+
+    const complete = await store.get(job.id);
+    expect(complete?.status).toBe("completed");
+    expect((complete?.result as { imagePath: string }).imagePath).toContain("故事板");
+    expect(gateway.lastImageModel).toBe("gpt-image-2");
+  });
+
+  it("marks a third transient failure as failed", async () => {
+    const gateway = new FakeGateway(3);
+    const { root, store, runner } = await setup(gateway);
+    const job = await runner.runStoryboard(storyboardFixture(join(root, "archive")));
+    await runner.waitFor(job.id);
+
+    expect((await store.get(job.id))?.status).toBe("failed");
+    expect(gateway.failures).toBe(3);
+  });
+});
