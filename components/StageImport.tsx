@@ -46,7 +46,7 @@ const StageImport: React.FC<Props> = ({ project, updateProject }) => {
         <div className="mb-8 border-b border-zinc-800 pb-7">
           <div className="mb-3 flex items-center gap-3 text-zinc-500">
             <FileInput className="h-5 w-5" />
-            <span className="font-mono text-[11px] uppercase tracking-[.22em]">Manual AI bridge</span>
+            <span className="font-mono text-[11px] tracking-[.22em]">手动 AI 导入</span>
           </div>
           <h2 className="text-3xl font-semibold tracking-tight text-white">导入式剧本与故事</h2>
           <p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-500">
@@ -87,7 +87,7 @@ const StageImport: React.FC<Props> = ({ project, updateProject }) => {
         {plan && <section className="mt-6 rounded-xl border border-emerald-900/60 bg-[#0A0A0A] p-6">
           <div className="flex flex-wrap items-start justify-between gap-5 border-b border-zinc-800 pb-5">
             <div>
-              <div className="flex items-center gap-2 text-emerald-400"><CheckCircle2 className="h-5 w-5" /><span className="font-mono text-[11px] uppercase tracking-widest">Validation passed</span></div>
+              <div className="flex items-center gap-2 text-emerald-400"><CheckCircle2 className="h-5 w-5" /><span className="font-mono text-[11px] tracking-widest">校验通过</span></div>
               <h3 className="mt-2 text-xl font-semibold text-white">{plan.title}</h3>
               <p className="mt-1 text-sm text-zinc-500">{plan.logline || '未填写一句话梗概'}</p>
             </div>
