@@ -111,8 +111,12 @@ export interface StoryboardVersion {
   id: string;
   clipId: string;
   version: number;
-  imagePath: string;
+  imagePath?: string;
+  imageUrl?: string;
   metadataPath?: string;
+  jobId?: string;
+  status: "queued" | "in_progress" | "completed" | "failed";
+  error?: string;
   createdAt: number;
 }
 

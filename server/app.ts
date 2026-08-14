@@ -15,7 +15,7 @@ const asset = z.object({
   tags: z.array(z.string()).optional(),
 });
 const audioItem = z.object({
-  type: z.string().min(1),
+  type: z.enum(["对白", "旁白", "音效", "环境音", "音乐"]),
   content: z.string().min(1),
   speaker: z.string().optional(),
 });
@@ -84,13 +84,20 @@ export function createApp(deps: AppDependencies): Express {
   }));
 
   app.get("/api/jobs/:id", asyncRoute(async (request, response) => {
-    const job = await deps.store.get(request.params.id);
+    const job = await deps.store.get(String(request.params.id));
     if (!job) return response.status(404).json({ error: "未找到该生成任务" });
     return response.json(job);
   }));
 
+  app.get("/api/jobs/:id/image", asyncRoute(async (request, response) => {
+    const job = await deps.store.get<unknown, { imagePath?: string }>(String(request.params.id));
+    const imagePath = job?.status === "completed" ? job.result?.imagePath : undefined;
+    if (!imagePath || !existsSync(imagePath)) return response.status(404).json({ error: "未找到该故事板图像" });
+    return response.sendFile(resolve(imagePath));
+  }));
+
   app.post("/api/jobs/:id/retry", asyncRoute(async (request, response) => {
-    const existing = await deps.store.get(request.params.id);
+    const existing = await deps.store.get(String(request.params.id));
     if (!existing) return response.status(404).json({ error: "未找到该生成任务" });
     const job = await deps.runner.retry(existing.id);
     return response.status(202).json({ jobId: job.id, status: job.status });

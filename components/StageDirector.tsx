@@ -1,37 +1,88 @@
-import React, { useMemo, useState } from 'react';
-import { Clapperboard, Image as ImageIcon, Layers3, Pencil, Play, Sparkles } from 'lucide-react';
-import { ProjectState, Shot } from '../types';
+import React, { useMemo, useState } from "react";
+import { Clapperboard, Image as ImageIcon, Layers3, LoaderCircle, Pencil, Play, Sparkles } from "lucide-react";
+import type { DirectorAsset, DirectorClip, DirectorShot } from "../server/types";
+import { createStoryboardJob, pollAiJob } from "../services/aiApiService";
+import type { ProjectState, StoryboardVersion } from "../types";
 
 interface Props { project: ProjectState; updateProject: (updates: Partial<ProjectState>) => void; }
 
 const StageDirector: React.FC<Props> = ({ project, updateProject }) => {
-  const [editing, setEditing] = useState<string | null>(null);
-  const [activeClip, setActiveClip] = useState(0);
-  const [boardVersion, setBoardVersion] = useState(1);
-  const [versions, setVersions] = useState([1]);
-  const [notice, setNotice] = useState('');
-  const script = project.scriptData;
-  const shots = useMemo(() => project.shots.map((shot, index) => ({ shot, index })), [project.shots]);
-  const updateShot = (id: string, patch: Partial<Shot>) => updateProject({ shots: project.shots.map((shot) => shot.id === id ? { ...shot, ...patch } : shot) });
-  const clipCount = Math.max(1, Math.min(5, Math.ceil(project.shots.length / 2)));
-  const clips = Array.from({ length: clipCount }, (_, index) => ({ title: `Clip ${index + 1}`, range: `${index * 2 + 1}–${Math.min(index * 2 + 2, project.shots.length)}` }));
-  const visibleShots = shots.slice(activeClip * 2, activeClip * 2 + 2);
-  const notify = (message: string) => { setNotice(message); window.setTimeout(() => setNotice(''), 2800); };
-  const createBoardVersion = () => { const next = Math.max(...versions) + 1; setVersions((current) => [...current, next]); setBoardVersion(next); notify(`已创建故事板版本 v${next}。`); };
-  if (!project.shots.length) return <div className="director-empty">请先通过剧本分析或导入式剧本生成镜头。</div>;
+  const clips = useMemo(() => project.directorClips.length ? project.directorClips : legacyClips(project), [project]);
+  const [activeClipId, setActiveClipId] = useState(clips[0]?.id || "");
+  const [editingShotId, setEditingShotId] = useState<string | null>(null);
+  const [selectedVersionId, setSelectedVersionId] = useState("");
+  const [generation, setGeneration] = useState<{ status: "idle" | "running" | "completed" | "failed"; progress: number; error?: string }>({ status: "idle", progress: 0 });
+  const activeClip = clips.find((clip) => clip.id === activeClipId) || clips[0];
+  const versions = project.storyboardVersions.filter((version) => version.clipId === activeClip?.id);
+  const selectedVersion = versions.find((version) => version.id === selectedVersionId) || versions.at(-1);
 
-  return <section className="director-studio director-reference-layout">
-    <header className="director-topbar"><div><h1>导演工作室</h1><p>当前生产来源：已锁定剧本 · 场次 01</p></div><button className="director-generate" onClick={() => { setActiveClip(0); notify('镜头已按当前场次顺序整理。'); }}><Layers3 size={17}/>整理镜头</button></header>
-    <div className="director-reference-body">
-      <aside className="director-clips"><header><b>剪辑列表</b><em>{clips.length}</em></header><div className="clip-list">{clips.map((clip, index) => <button key={clip.title} className={activeClip === index ? 'active' : ''} onClick={() => { setActiveClip(index); setEditing(null); }}><span>{index + 1}</span><div><b>{clip.title}</b><small>镜头 {clip.range}</small></div><i>▦</i></button>)}</div></aside>
-      <main className="director-shot-column"><header className="director-column-title"><b>镜头列表</b><em>{project.shots.length}</em></header><div className="director-shot-scroll">{visibleShots.map(({ shot, index }) => {
-        const editingThis = editing === shot.id;
-        const scene = script?.scenes.find((item) => item.id === shot.sceneId);
-        const characterNames = shot.characters.map((id) => script?.characters.find((character) => character.id === id)?.name).filter(Boolean);
-        return <article className="director-shot-card" key={shot.id}><header><span>#{index + 1}</span>{editingThis ? <input value={shot.shotSize || ''} onChange={(event) => updateShot(shot.id, { shotSize: event.target.value })}/> : <b>{shot.shotSize || '中景 MS'}</b>}<button onClick={() => setEditing(editingThis ? null : shot.id)}><Pencil size={16}/>{editingThis ? '完成' : '编辑'}</button></header><div className="director-shot-card-main"><section><small>▧ 画面</small>{editingThis ? <textarea autoFocus value={shot.actionSummary} onChange={(event) => updateShot(shot.id, { actionSummary: event.target.value })}/> : <p>{shot.actionSummary}</p>}</section><aside><small>◷ 时长</small><b>{shot.interval?.duration || 5} 秒</b></aside></div><div className="shot-audio"><small>▧ 音频（对白 / 旁白 / 音效 / 环境音 / 音乐）</small>{editingThis ? <input value={shot.dialogue || ''} onChange={(event) => updateShot(shot.id, { dialogue: event.target.value })} placeholder="添加对白或旁白"/> : shot.dialogue && <p><i>对白</i>“{shot.dialogue}”</p>}</div><footer><span>⌖ {scene?.location || '未指定场景'}</span>{characterNames.map((name) => <span key={name}>♙ {name}</span>)}</footer></article>;
-      })}</div></main>
-      <aside className="director-storyboard"><header><b>▧ 故事板</b><div><select aria-label="故事板版本" value={boardVersion} onChange={(event) => { setBoardVersion(Number(event.target.value)); notify(`已切换到故事板版本 v${event.target.value}。`); }}>{versions.map((version) => <option key={version} value={version}>v{version}</option>)}</select><button className="director-board-create" onClick={createBoardVersion}><Sparkles size={15}/>生成新版本</button></div></header><div className="storyboard-grid">{visibleShots.map(({ shot, index }) => { const image = shot.keyframes?.find((frame) => frame.type === 'start')?.imageUrl; return <button key={shot.id} className="storyboard-tile" onClick={() => setEditing(shot.id)}>{image ? <img src={image} alt={`镜头 ${index + 1}`}/> : <ImageIcon size={26}/>}<span>镜头 {String(index + 1).padStart(2, '0')}</span></button>; })}</div><section className="director-video-panel"><header><b>▣ 视频</b><button onClick={() => notify('视频 API 尚未配置；镜头和提示词已经保留。')}><Play size={16}/>生成视频</button></header><div><Clapperboard size={42}/><p>暂无视频</p><small>生成视频以预览最终效果</small></div></section></aside>
-    </div>{notice && <div className="director-notice" role="status">{notice}</div>}
+  if (!activeClip) return <div className="grid h-full place-items-center bg-[#fffaf3] text-[#86786d]">请先通过 AI 剧本分析或导入式剧本生成镜头。</div>;
+
+  const updateShot = (shotId: string, patch: Partial<DirectorShot>) => {
+    updateProject({ directorClips: clips.map((clip) => clip.id === activeClip.id ? { ...clip, shots: clip.shots.map((shot) => shot.id === shotId ? { ...shot, ...patch } : shot) } : clip) });
+  };
+
+  const generate = async () => {
+    if (generation.status === "running") return;
+    const version = Math.max(0, ...versions.map((item) => item.version)) + 1;
+    setGeneration({ status: "running", progress: 5 });
+    try {
+      const created = await createStoryboardJob({
+        projectId: project.id,
+        projectTitle: project.title,
+        sceneName: activeClip.title || `场次 ${activeClip.id}`,
+        clip: activeClip,
+        assets: buildAssets(project),
+        artStyle: project.artStyle || "日漫赛璐路",
+        tags: project.styleTags || [],
+        aspectRatio: project.aspectRatio || "16:9",
+        version,
+      });
+      updateProject({ activeAiJobs: { ...project.activeAiJobs, [`storyboard:${activeClip.id}`]: { jobId: created.jobId, kind: "storyboard", status: created.status, progress: 0 } } });
+      const complete = await pollAiJob<{ imagePath: string; metadataPath: string }>(created.jobId);
+      if (complete.status === "failed" || !complete.result) throw new Error(complete.error || "故事板生成失败");
+      const stored: StoryboardVersion = { id: `board-${created.jobId}`, clipId: activeClip.id, version, jobId: created.jobId, status: "completed", imagePath: complete.result.imagePath, imageUrl: `/api/jobs/${created.jobId}/image`, metadataPath: complete.result.metadataPath, createdAt: Date.now() };
+      updateProject({ storyboardVersions: [...project.storyboardVersions, stored], activeAiJobs: {} });
+      setSelectedVersionId(stored.id);
+      setGeneration({ status: "completed", progress: 100 });
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "故事板生成失败";
+      const failedVersion: StoryboardVersion = { id: `board-failed-${Date.now()}`, clipId: activeClip.id, version, status: "failed", error: message, createdAt: Date.now() };
+      updateProject({ storyboardVersions: [...project.storyboardVersions, failedVersion], activeAiJobs: {} });
+      setGeneration({ status: "failed", progress: 0, error: message });
+    }
+  };
+
+  return <section className="flex h-full flex-col bg-[#fffaf3] text-[#2d251f]">
+    <header className="flex h-[94px] shrink-0 items-center justify-between border-b border-[#ded5c8] px-8"><div><h1 className="text-2xl font-semibold">导演工作室</h1><p className="mt-2 text-xs text-[#8b7b6e]">当前生产来源：已锁定剧本 · {activeClip.title}</p></div><button className="flex items-center gap-2 rounded-md border border-[#d9cdbc] bg-white px-4 py-2 text-sm"><Layers3 size={16}/>整理镜头</button></header>
+    {generation.status !== "idle" && <div role="status" className={`border-b px-8 py-2 text-sm ${generation.status === "failed" ? "border-red-200 bg-red-50 text-red-700" : "border-[#ead8bd] bg-[#fff1d7] text-[#8a4a18]"}`}>{generation.status === "running" && <LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" />}{generation.status === "running" ? `故事板生成中 ${generation.progress}%` : generation.status === "completed" ? "生成完成" : generation.error}{generation.status === "failed" && <button onClick={generate} className="ml-4 underline">重试</button>}</div>}
+    <div className="grid min-h-0 flex-1 grid-cols-[280px_minmax(430px,1fr)_minmax(390px,42%)]">
+      <aside className="border-r border-[#ded5c8]"><ColumnTitle title="剪辑列表" count={clips.length}/><div className="p-3">{clips.map((clip, index) => <button key={clip.id} onClick={() => { setActiveClipId(clip.id); setEditingShotId(null); }} className={`mb-2 flex w-full items-center gap-4 rounded-lg border p-4 text-left ${clip.id === activeClip.id ? "border-[#e9b58f] bg-white" : "border-transparent"}`}><span className="rounded bg-[#f4e9d7] px-2 py-1 text-sm">{index + 1}</span><span><b className="block">Clip {String(index + 1).padStart(2, "0")}</b><small className="text-[#8c7c6f]">{clip.summary}</small></span></button>)}</div></aside>
+      <main className="min-w-0 border-r border-[#ded5c8]"><ColumnTitle title="镜头列表" count={activeClip.shots.length}/><div className="h-[calc(100%-54px)] overflow-auto p-5">{activeClip.shots.map((shot, index) => { const editing = editingShotId === shot.id; return <article key={shot.id} className="mb-5 rounded-xl border border-[#ded5c8] bg-white p-6 shadow-sm"><header className="mb-5 flex items-center gap-3"><span className="rounded bg-[#f7eddd] px-2 py-1 text-sm"># {index + 1}</span>{editing ? <input aria-label="景别" className="rounded border p-2" value={shot.shotSize} onChange={(event) => updateShot(shot.id, { shotSize: event.target.value })}/> : <b className="rounded border border-[#ded5c8] bg-[#fffaf3] px-3 py-1 text-sm">{shot.shotSize}</b>}<button onClick={() => setEditingShotId(editing ? null : shot.id)} className="ml-auto flex items-center gap-2 text-sm"><Pencil size={15}/>{editing ? "完成" : "编辑"}</button></header><div className="grid grid-cols-[1fr_70px] gap-5"><section><small className="text-[#8f8073]">画面</small>{editing ? <textarea aria-label="画面内容" className="mt-2 w-full rounded border border-[#d8cbbb] p-3" value={shot.action} onChange={(event) => updateShot(shot.id, { action: event.target.value })}/> : <p className="mt-2 leading-7">{shot.action}</p>}</section><aside><small className="text-[#8f8073]">时长</small><b className="mt-2 block rounded border border-[#ded5c8] p-2 text-center">{shot.duration} 秒</b></aside></div><div className="mt-5 border-t border-[#eee4d8] pt-4"><small className="text-[#8f8073]">运镜 / 画面提示词</small>{editing ? <><input aria-label="运镜" className="mt-2 w-full rounded border p-2" value={shot.cameraMovement} onChange={(event) => updateShot(shot.id, { cameraMovement: event.target.value })}/><textarea aria-label="画面提示词" className="mt-2 w-full rounded border p-2" value={shot.visualPrompt} onChange={(event) => updateShot(shot.id, { visualPrompt: event.target.value })}/></> : <p className="mt-2 text-sm leading-6 text-[#75685d]">{shot.cameraMovement} · {shot.visualPrompt}</p>}</div><footer className="mt-5 flex flex-wrap gap-2">{shot.assets.map((asset) => <span key={`${asset.type}:${asset.id}`} className="rounded bg-[#eff8ef] px-2 py-1 text-xs text-[#44704d]">{assetName(project, asset.type, asset.id)}</span>)}</footer></article>})}</div></main>
+      <aside className="min-w-0"><header className="flex h-[54px] items-center justify-between border-b border-[#ded5c8] px-5"><b className="flex items-center gap-2"><ImageIcon size={17}/>故事板</b><div className="flex items-center gap-2"><select aria-label="故事板版本" value={selectedVersion?.id || ""} onChange={(event) => setSelectedVersionId(event.target.value)} className="rounded border border-[#ded5c8] bg-white px-3 py-2">{versions.length === 0 && <option value="">v0</option>}{versions.map((version) => <option key={version.id} value={version.id}>v{version.version}</option>)}</select><button onClick={generate} disabled={generation.status === "running"} className="flex items-center gap-2 rounded-md bg-[#c4510a] px-4 py-2 text-sm text-white disabled:opacity-50"><Sparkles size={15}/>生成新版本</button></div></header><div className="p-5">{selectedVersion?.imageUrl ? <img src={selectedVersion.imageUrl} alt={`故事板 v${selectedVersion.version}`} className="aspect-[3/2] w-full rounded-lg border border-[#ded5c8] object-contain bg-[#f1eadf]"/> : <div className="grid aspect-[3/2] place-items-center rounded-lg border border-dashed border-[#d8cbbb] bg-[#f5eee4] text-[#b4a89c]"><div className="text-center"><ImageIcon className="mx-auto mb-2"/><p>暂无故事板</p></div></div>}{selectedVersion?.imagePath && <p className="mt-3 break-all text-xs text-[#8e8074]">已归档：{selectedVersion.imagePath}</p>}<section className="mt-6 border-t border-[#ded5c8] pt-5"><header className="flex items-center justify-between"><b className="flex items-center gap-2"><Clapperboard size={17}/>视频</b><button className="flex items-center gap-2 rounded-md bg-[#c4510a] px-4 py-2 text-sm text-white"><Play size={15}/>生成视频</button></header><div className="mt-4 grid h-48 place-items-center rounded-lg border border-[#e2d7c8] text-[#b5aa9e]">视频 API 待接入</div></section></div></aside>
+    </div>
   </section>;
 };
+
+const ColumnTitle = ({ title, count }: { title: string; count: number }) => <header className="flex h-[54px] items-center justify-between border-b border-[#ded5c8] px-5"><b>{title}</b><em className="rounded bg-[#f5ecdd] px-2 py-1 text-xs not-italic">{count}</em></header>;
+
+function buildAssets(project: ProjectState): DirectorAsset[] {
+  return [
+    ...(project.scriptData?.characters || []).map((item) => ({ id: item.id, type: "character" as const, name: item.name, description: item.visualPrompt || item.personality, tags: item.tags })),
+    ...(project.scriptData?.scenes || []).map((item) => ({ id: item.id, type: "scene" as const, name: item.location, description: item.visualPrompt || item.atmosphere, tags: item.tags })),
+    ...(project.scriptData?.props || []).map((item) => ({ id: item.id, type: "prop" as const, name: item.name, description: item.visualPrompt || item.description, tags: item.tags })),
+  ];
+}
+
+function assetName(project: ProjectState, type: string, id: string): string {
+  if (type === "character") return project.scriptData?.characters.find((item) => item.id === id)?.name || id;
+  if (type === "scene") return project.scriptData?.scenes.find((item) => item.id === id)?.location || id;
+  return project.scriptData?.props?.find((item) => item.id === id)?.name || id;
+}
+
+function legacyClips(project: ProjectState): DirectorClip[] {
+  if (!project.shots.length) return [];
+  return [{ id: "legacy-clip-1", title: "场次 01", summary: project.scriptData?.logline || "已导入镜头", shots: project.shots.map((shot) => ({ id: shot.id, title: shot.actionSummary.slice(0, 20), shotSize: shot.shotSize || "中景 MS", cameraMovement: shot.cameraMovement, duration: shot.interval?.duration || 5, action: shot.actionSummary, visualPrompt: shot.keyframes[0]?.visualPrompt || shot.actionSummary, audioItems: shot.dialogue ? [{ type: "对白", content: shot.dialogue }] : [], assets: [{ type: "scene" as const, id: shot.sceneId }, ...shot.characters.map((id) => ({ type: "character" as const, id })), ...(shot.props || []).map((id) => ({ type: "prop" as const, id }))] })) }];
+}
+
 export default StageDirector;
