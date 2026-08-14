@@ -250,7 +250,7 @@ const StageDirector: React.FC<Props> = ({ project, updateProject }) => {
           <div className="bg-[#141414] p-5 rounded-xl border border-zinc-800 mb-6 space-y-4">
               <div className="flex items-center gap-2 mb-2">
                  <MapPin className="w-4 h-4 text-zinc-500" />
-                 <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">场景环境 (Scene Context)</h4>
+                 <h4 className="text-xs font-bold text-zinc-400 tracking-widest">场景环境</h4>
               </div>
               
               <div className="flex gap-4">
@@ -292,7 +292,7 @@ const StageDirector: React.FC<Props> = ({ project, updateProject }) => {
                                             onChange={(e) => handleVariationChange(activeShot.id, char.id, e.target.value)}
                                             className="bg-black text-[10px] text-zinc-400 border border-zinc-700 rounded px-1.5 py-0.5 max-w-[100px] outline-none focus:border-indigo-500"
                                          >
-                                             <option value="">Default Look</option>
+                                             <option value="">基础形象</option>
                                              {char.variations.map(v => (
                                                  <option key={v.id} value={v.id}>{v.name}</option>
                                              ))}
@@ -336,7 +336,7 @@ const StageDirector: React.FC<Props> = ({ project, updateProject }) => {
               <h2 className="text-lg font-bold text-white flex items-center gap-3">
                   <LayoutGrid className="w-5 h-5 text-indigo-500" />
                   导演工作台
-                  <span className="text-xs text-zinc-600 font-mono font-normal uppercase tracking-wider bg-black/30 px-2 py-1 rounded">Director Workbench</span>
+                  <span className="text-xs text-zinc-600 font-mono font-normal tracking-wider bg-black/30 px-2 py-1 rounded">导演工作台</span>
               </h2>
           </div>
 
@@ -382,7 +382,7 @@ const StageDirector: React.FC<Props> = ({ project, updateProject }) => {
                           >
                               {/* Header */}
                               <div className="px-3 py-2 bg-[#151515] border-b border-zinc-800 flex justify-between items-center">
-                                  <span className={`font-mono text-[10px] font-bold ${isActive ? 'text-indigo-400' : 'text-zinc-500'}`}>SHOT {String(idx + 1).padStart(2, '0')}</span>
+                                  <span className={`font-mono text-[10px] font-bold ${isActive ? 'text-indigo-400' : 'text-zinc-500'}`}>镜头 {String(idx + 1).padStart(2, '0')}</span>
                                   <span className="text-[9px] px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded uppercase">{shot.cameraMovement}</span>
                               </div>
 
@@ -491,7 +491,7 @@ const StageDirector: React.FC<Props> = ({ project, updateProject }) => {
                                {/* Start Frame */}
                                <div className="space-y-2">
                                    <div className="flex justify-between items-center">
-                                       <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">起始帧 (Start)</span>
+                                       <span className="text-[10px] font-bold text-zinc-500 tracking-widest">起始帧</span>
                                        <button 
                                            onClick={() => handleGenerateKeyframe(activeShot, 'start')}
                                            className="text-[10px] text-indigo-400 hover:text-white transition-colors"
@@ -519,7 +519,7 @@ const StageDirector: React.FC<Props> = ({ project, updateProject }) => {
                                {/* End Frame */}
                                <div className="space-y-2">
                                    <div className="flex justify-between items-center">
-                                       <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">结束帧 (End)</span>
+                                       <span className="text-[10px] font-bold text-zinc-500 tracking-widest">结束帧</span>
                                        <button 
                                            onClick={() => handleGenerateKeyframe(activeShot, 'end')}
                                            className="text-[10px] text-indigo-400 hover:text-white transition-colors"
@@ -553,7 +553,7 @@ const StageDirector: React.FC<Props> = ({ project, updateProject }) => {
                                   <Video className="w-3 h-3 text-indigo-500" />
                                   视频生成 (Veo)
                                </h4>
-                               {activeShot.interval?.status === 'completed' && <span className="text-[10px] text-green-500 font-mono flex items-center gap-1">● READY</span>}
+                               {activeShot.interval?.status === 'completed' && <span className="text-[10px] text-green-500 font-mono flex items-center gap-1">● 已就绪</span>}
                            </div>
                            
                            {activeShot.interval?.videoUrl ? (
@@ -589,7 +589,7 @@ const StageDirector: React.FC<Props> = ({ project, updateProject }) => {
                            
                            {!endKf?.imageUrl && (
                                <div className="text-[9px] text-zinc-500 text-center font-mono">
-                                  * 未检测到结束帧，将使用单图生成模式 (Image-to-Video)
+                                  * 未检测到结束帧，将使用单图生成视频模式
                                </div>
                            )}
                        </div>
