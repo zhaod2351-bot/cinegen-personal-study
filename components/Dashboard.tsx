@@ -68,7 +68,7 @@ const Dashboard: React.FC<Props> = ({ onOpenProject }) => {
             <h1 className="text-3xl font-light text-white tracking-tight mb-2 flex items-center gap-3">
               项目库
               <span className="text-zinc-800 text-lg">/</span>
-              <span className="text-zinc-600 text-sm font-mono tracking-widest uppercase">Projects Database</span>
+              <span className="text-zinc-600 text-sm font-mono tracking-widest">项目数据库</span>
             </h1>
           </div>
           <button 
@@ -95,7 +95,7 @@ const Dashboard: React.FC<Props> = ({ onOpenProject }) => {
               <div className="w-12 h-12 border border-zinc-700 flex items-center justify-center mb-6 group-hover:bg-zinc-800 transition-colors">
                 <Plus className="w-5 h-5 text-zinc-500 group-hover:text-white" />
               </div>
-              <span className="text-zinc-600 font-mono text-[10px] uppercase tracking-widest group-hover:text-zinc-300">Create New Project</span>
+              <span className="text-zinc-600 font-mono text-[10px] tracking-widest group-hover:text-zinc-300">创建新项目</span>
             </div>
 
             {/* Project List */}
