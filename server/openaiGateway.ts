@@ -2,24 +2,30 @@ import OpenAI from "openai";
 import { z } from "zod";
 import { buildDirectorPlanPrompt } from "./prompts/directorPlanPrompt";
 import { buildStoryboardPrompt } from "./prompts/storyboardPrompt";
+import type { RuntimeAiSettings } from "./settings/types";
 import type { DirectorPlanInput, StoryboardInput } from "./types";
 import { DirectorPlanSchema } from "./validation/directorPlan";
 
 export interface AiGateway {
-  createDirectorPlan(input: DirectorPlanInput, model: string): Promise<unknown>;
-  generateStoryboard(input: StoryboardInput, model: "gpt-image-2"): Promise<Buffer>;
+  createDirectorPlan(input: DirectorPlanInput): Promise<unknown>;
+  generateStoryboard(input: StoryboardInput): Promise<{ image: Buffer; model: string }>;
 }
 
+export type OpenAIClientFactory = (options: { apiKey: string; baseURL: string }) => OpenAI;
+
 export class OpenAIGateway implements AiGateway {
-  private readonly client: OpenAI;
+  constructor(
+    private readonly getRuntimeSettings: () => Promise<RuntimeAiSettings>,
+    private readonly createClient: OpenAIClientFactory = (options) => new OpenAI(options),
+  ) {}
 
-  constructor(apiKey: string) {
-    this.client = new OpenAI({ apiKey });
-  }
-
-  async createDirectorPlan(input: DirectorPlanInput, model: string): Promise<unknown> {
-    const response = await this.client.chat.completions.create({
-      model,
+  async createDirectorPlan(input: DirectorPlanInput): Promise<unknown> {
+    const settings = await this.getRuntimeSettings();
+    const provider = settings.text;
+    if (!provider.apiKey) throw new Error("Text provider API key is not configured");
+    const client = this.createClient({ apiKey: provider.apiKey, baseURL: provider.baseUrl });
+    const response = await client.chat.completions.create({
+      model: provider.model,
       stream: false,
       messages: [{ role: "user", content: buildDirectorPlanPrompt(input) }],
       response_format: {
@@ -30,28 +36,34 @@ export class OpenAIGateway implements AiGateway {
           schema: z.toJSONSchema(DirectorPlanSchema),
         },
       },
-    } as Parameters<typeof this.client.chat.completions.create>[0]) as OpenAI.Chat.Completions.ChatCompletion;
+    } as Parameters<typeof client.chat.completions.create>[0]) as OpenAI.Chat.Completions.ChatCompletion;
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("OpenAI returned an empty director plan");
     return JSON.parse(content) as unknown;
   }
 
-  async generateStoryboard(input: StoryboardInput, model: "gpt-image-2"): Promise<Buffer> {
-    const response = await this.client.images.generate({
-      model,
+  async generateStoryboard(input: StoryboardInput): Promise<{ image: Buffer; model: string }> {
+    const settings = await this.getRuntimeSettings();
+    const provider = settings.image;
+    if (!provider.apiKey) throw new Error("Image provider API key is not configured");
+    const client = this.createClient({ apiKey: provider.apiKey, baseURL: provider.baseUrl });
+    const response = await client.images.generate({
+      model: provider.model,
       stream: false,
       prompt: buildStoryboardPrompt(input),
       size: "1536x1024",
       quality: "high",
       output_format: "webp",
       background: "opaque",
-    } as Parameters<typeof this.client.images.generate>[0]) as OpenAI.Images.ImagesResponse;
+    } as Parameters<typeof client.images.generate>[0]) as OpenAI.Images.ImagesResponse;
     const first = response.data?.[0];
-    if (first?.b64_json) return Buffer.from(first.b64_json, "base64");
+    if (first?.b64_json) {
+      return { image: Buffer.from(first.b64_json, "base64"), model: provider.model };
+    }
     if (first?.url) {
       const download = await fetch(first.url);
       if (!download.ok) throw new Error(`Could not download generated image: ${download.status}`);
-      return Buffer.from(await download.arrayBuffer());
+      return { image: Buffer.from(await download.arrayBuffer()), model: provider.model };
     }
     throw new Error("OpenAI returned no storyboard image");
   }

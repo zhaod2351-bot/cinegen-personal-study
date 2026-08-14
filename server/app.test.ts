@@ -16,14 +16,14 @@ async function fixtureApp() {
       return {};
     },
     async generateStoryboard() {
-      return Buffer.from("image");
+      return { image: Buffer.from("image"), model: "gpt-image-2" };
     },
   };
   const runner = new JobRunner({ store, gateway, archiveRoot: join(root, "archive"), retryDelayMs: 0 });
   return createApp({
     store,
     runner,
-    models: { text: "gpt-test", image: "gpt-image-2" },
+    models: { text: "gpt-test", image: "runtime-image-model" },
   });
 }
 
@@ -57,7 +57,7 @@ const storyboard = {
 describe("local AI API", () => {
   it("reports configured models without exposing the key", async () => {
     const response = await request(await fixtureApp()).get("/api/health").expect(200);
-    expect(response.body.models).toEqual({ text: "gpt-test", image: "gpt-image-2" });
+    expect(response.body.models).toEqual({ text: "gpt-test", image: "runtime-image-model" });
     expect(JSON.stringify(response.body)).not.toContain("secret");
   });
 

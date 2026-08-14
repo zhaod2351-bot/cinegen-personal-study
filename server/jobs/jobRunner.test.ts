@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -55,7 +55,6 @@ function storyboardFixture(root: string): StoryboardInput & { archiveRoot: strin
 
 class FakeGateway implements AiGateway {
   failures = 0;
-  lastImageModel?: string;
 
   constructor(private readonly failCount = 0) {}
 
@@ -63,15 +62,14 @@ class FakeGateway implements AiGateway {
     return validPlan;
   }
 
-  async generateStoryboard(_input: StoryboardInput, model: "gpt-image-2"): Promise<Buffer> {
-    this.lastImageModel = model;
+  async generateStoryboard(): Promise<{ image: Buffer; model: string }> {
     if (this.failures < this.failCount) {
       this.failures += 1;
       const error = new Error("temporary unavailable") as Error & { status: number };
       error.status = 503;
       throw error;
     }
-    return Buffer.from("webp-image");
+    return { image: Buffer.from("webp-image"), model: "runtime-image-model" };
   }
 }
 
@@ -93,7 +91,7 @@ describe("JobRunner", () => {
     expect((complete?.result as DirectorPlan).polishedScript).toContain("踉跄");
   });
 
-  it("archives a generated gpt-image-2 storyboard", async () => {
+  it("archives a storyboard with the model reported by the gateway", async () => {
     const gateway = new FakeGateway();
     const { root, store, runner } = await setup(gateway);
     const job = await runner.runStoryboard(storyboardFixture(join(root, "archive")));
@@ -101,8 +99,10 @@ describe("JobRunner", () => {
 
     const complete = await store.get(job.id);
     expect(complete?.status).toBe("completed");
-    expect((complete?.result as { imagePath: string }).imagePath).toContain("故事板");
-    expect(gateway.lastImageModel).toBe("gpt-image-2");
+    const result = complete?.result as { imagePath: string; metadataPath: string };
+    expect(result.imagePath).toContain("故事板");
+    const metadata = JSON.parse(await readFile(result.metadataPath, "utf8")) as { model: string };
+    expect(metadata.model).toBe("runtime-image-model");
   });
 
   it("marks a third transient failure as failed", async () => {

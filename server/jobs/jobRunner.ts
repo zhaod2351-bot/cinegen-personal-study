@@ -9,20 +9,14 @@ export interface JobRunnerOptions {
   store: JobStore;
   gateway: AiGateway;
   archiveRoot: string;
-  textModel?: string;
-  imageModel?: "gpt-image-2";
   retryDelayMs?: number;
 }
 
 export class JobRunner {
   private readonly active = new Map<string, Promise<void>>();
-  private readonly textModel: string;
-  private readonly imageModel: "gpt-image-2";
   private readonly retryDelayMs: number;
 
   constructor(private readonly options: JobRunnerOptions) {
-    this.textModel = options.textModel ?? "gpt-5";
-    this.imageModel = options.imageModel ?? "gpt-image-2";
     this.retryDelayMs = options.retryDelayMs ?? 800;
   }
 
@@ -62,9 +56,7 @@ export class JobRunner {
   private async executeDirectorPlan(id: string, input: DirectorPlanInput): Promise<void> {
     await this.options.store.update(id, { status: "in_progress", progress: 15 });
     try {
-      const raw = await this.withTransientRetries(() =>
-        this.options.gateway.createDirectorPlan(input, this.textModel),
-      );
+      const raw = await this.withTransientRetries(() => this.options.gateway.createDirectorPlan(input));
       const plan = validateDirectorPlan(raw);
       await this.options.store.update<DirectorPlanInput, DirectorPlan>(id, {
         status: "completed",
@@ -81,10 +73,10 @@ export class JobRunner {
     await this.options.store.update(id, { status: "in_progress", progress: 10 });
     let attempts = 0;
     try {
-      const imageBytes = await this.withTransientRetries(async () => {
+      const generated = await this.withTransientRetries(async () => {
         attempts += 1;
         await this.options.store.update(id, { progress: 20 + attempts * 15 });
-        return this.options.gateway.generateStoryboard(input, this.imageModel);
+        return this.options.gateway.generateStoryboard(input);
       });
       await this.options.store.update(id, { progress: 85 });
       const archived = await archiveStoryboard({
@@ -92,9 +84,9 @@ export class JobRunner {
         projectTitle: input.projectTitle,
         sceneName: input.sceneName,
         version: input.version,
-        imageBytes,
+        imageBytes: generated.image,
         metadata: {
-          model: this.imageModel,
+          model: generated.model,
           timestamp: new Date().toISOString(),
           taskId: id,
           version: input.version,

@@ -10,15 +10,13 @@ const config = loadServerConfig(process.env);
 const store = new JobStore(resolve(".cinegen-ai", "jobs"));
 const runner = new JobRunner({
   store,
-  gateway: new OpenAIGateway(config.apiKey),
+  gateway: new OpenAIGateway(async () => config.aiDefaults),
   archiveRoot: config.assetRoot,
-  textModel: config.textModel,
-  imageModel: config.imageModel,
 });
 const app = createApp({
   store,
   runner,
-  models: { text: config.textModel, image: config.imageModel },
+  models: { text: config.aiDefaults.text.model, image: config.aiDefaults.image.model },
   archiveRoot: config.assetRoot,
   distPath: resolve("dist"),
 });

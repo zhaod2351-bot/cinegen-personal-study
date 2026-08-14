@@ -59,7 +59,7 @@ const storyboardInput = z.object({
 export interface AppDependencies {
   store: JobStore;
   runner: JobRunner;
-  models: { text: string; image: "gpt-image-2" };
+  models: { text: string; image: string };
   archiveRoot?: string;
   distPath?: string;
 }
