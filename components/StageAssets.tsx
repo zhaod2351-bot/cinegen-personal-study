@@ -58,7 +58,7 @@ const StageAssets: React.FC<Props> = ({ project, updateProject, onOpenDirector }
         <button className={!isCharacter ? 'active' : ''} onClick={() => switchKind('scene')}><MapPin size={18}/>场景</button>
         <button disabled><Box size={18}/>道具</button>
       </div>
-      <div className="asset-style">艺术风格：<b>{data.genre || '个人项目风格'}</b></div>
+      <div className="asset-style">艺术风格：<b>{project.artStyle || data.genre || '个人项目风格'}</b></div>
     </header>
 
     <div className="asset-workbench">
@@ -92,7 +92,7 @@ const StageAssets: React.FC<Props> = ({ project, updateProject, onOpenDirector }
             <h3><Sparkles size={16}/>视觉参考</h3>
             {editing ? <textarea value={visualPrompt} onChange={(event) => save({ visualPrompt: event.target.value })}/> : <div className="visual-copy">{visualPrompt}</div>}
             <p>此描述会作为后续镜头提示词的视觉依据。上传的本地参考图会保留在当前个人项目中。</p>
-            <p>当前风格：<b>{data.genre || '个人项目风格'}</b></p>
+            <p>当前风格：<b>{project.artStyle || data.genre || '个人项目风格'}</b></p>
           </div>
           <section className="asset-info">
             <div className="asset-info-tabs"><button onClick={() => setTab('overview')} className={tab === 'overview' ? 'active' : ''}>概览</button><button onClick={() => setTab('shots')} className={tab === 'shots' ? 'active' : ''}>相关镜头 <b>{linked.length}</b></button></div>
@@ -101,7 +101,7 @@ const StageAssets: React.FC<Props> = ({ project, updateProject, onOpenDirector }
               <div className="asset-divider"/>
               <div className="asset-metadata">
                 <div><h3>基础信息</h3>{isCharacter ? <><p><label>性别</label><span>{(selected as Character).gender || '未设置'}</span></p><p><label>年龄</label><span>{(selected as Character).age || '未设置'}</span></p></> : <><p><label>时间</label><span>{(selected as Scene).time || '未设置'}</span></p><p><label>地点</label><span>{name}</span></p></>}<p className="tag-row"><label>标签</label><span>{tags.filter(Boolean).map((tag, index) => <i key={index}>#{tag}</i>)}</span></p>{isCharacter && <p className="tag-row"><label>语音标签</label><span><i>#待配置</i><i>#待录音</i></span></p>}</div>
-                <div><h3>统计数据</h3><p><label>关联镜头</label><span>{linked.length}</span></p><p><label>创建于</label><span>当前项目</span></p><p><label>风格预设</label><span className="preset">{data.genre || '个人项目风格'}</span></p></div>
+                <div><h3>统计数据</h3><p><label>关联镜头</label><span>{linked.length}</span></p><p><label>创建于</label><span>当前项目</span></p><p><label>风格预设</label><span className="preset">{project.artStyle || data.genre || '个人项目风格'}</span></p></div>
               </div>
             </> : <div className="linked-shots">{linked.length ? linked.map((shot, index) => <button key={shot.id} onClick={() => onOpenDirector?.(shot.id)}><b>镜头 {String(index + 1).padStart(2, '0')}</b><span>{shot.actionSummary}</span><small>{shot.shotSize || '未设置景别'}</small></button>) : <p>这个资产暂未关联镜头。</p>}</div>}
           </section>
