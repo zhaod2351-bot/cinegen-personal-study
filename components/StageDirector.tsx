@@ -1,48 +1,55 @@
 import React, { useMemo, useState } from 'react';
-import { Clapperboard, Image as ImageIcon, MapPin, Pencil, Sparkles, UserRound } from 'lucide-react';
+import { Clapperboard, Image as ImageIcon, Layers3, Pencil, Play, Sparkles } from 'lucide-react';
 import { ProjectState, Shot } from '../types';
 
 interface Props { project: ProjectState; updateProject: (updates: Partial<ProjectState>) => void; }
 
 const StageDirector: React.FC<Props> = ({ project, updateProject }) => {
   const [editing, setEditing] = useState<string | null>(null);
+  const [activeClip, setActiveClip] = useState(0);
   const script = project.scriptData;
   const scene = script?.scenes[0];
-  const story = script?.logline || project.rawScript || '尚未填写故事摘要。';
+  const shots = useMemo(() => project.shots.map((shot, index) => ({ shot, index })), [project.shots]);
   const updateShot = (id: string, patch: Partial<Shot>) => updateProject({ shots: project.shots.map((shot) => shot.id === id ? { ...shot, ...patch } : shot) });
-  const shotsByScene = useMemo(() => project.shots.map((shot, index) => ({ shot, index })), [project.shots]);
+  const clipCount = Math.max(1, Math.min(5, Math.ceil(project.shots.length / 2)));
+  const clips = Array.from({ length: clipCount }, (_, index) => ({
+    title: `Clip ${index + 1}`,
+    range: `${index * 2 + 1}–${Math.min(index * 2 + 2, project.shots.length)}`,
+  }));
 
-  if (!project.shots.length) return <div className="h-full grid place-items-center bg-[#fffaf3] text-[#7b6e61]">请先通过剧本分析或导入式剧本生成镜头。</div>;
+  if (!project.shots.length) return <div className="director-empty">请先通过剧本分析或导入式剧本生成镜头。</div>;
 
-  return <section className="director-studio">
-    <header className="director-topbar"><div><h1>导演工作台</h1><p>当前生产来源：{project.stage === 'import' ? '导入式剧本' : '已锁定剧本'} · 场次 01</p></div><button className="director-generate"><Sparkles size={17}/>重新分析镜头</button></header>
-    <div className="director-body">
-      <aside className="director-context">
-        <section><h2>故事梗概</h2><p>“{story}”</p></section>
-        <section><h2><UserRound size={16}/>演员表</h2>{script?.characters.map((character) => <div className="context-row" key={character.id}><span>{character.name}</span><small>{character.gender || '未设定'}</small></div>)}</section>
-        <section><h2><MapPin size={16}/>场景列表</h2>{script?.scenes.map((item) => <div className="context-row" key={item.id}><span>•　{item.location}</span></div>)}</section>
+  return <section className="director-studio director-reference-layout">
+    <header className="director-topbar">
+      <div><h1>导演工作室</h1><p>当前生产来源：{project.stage === 'import' ? '导入式剧本' : '已锁定剧本'} · 场次 01</p></div>
+      <button className="director-generate"><Layers3 size={17}/>整理镜头</button>
+    </header>
+    <div className="director-reference-body">
+      <aside className="director-clips">
+        <header><b>剪辑列表</b><em>{clips.length}</em></header>
+        <div className="clip-list">{clips.map((clip, index) => <button key={clip.title} className={activeClip === index ? 'active' : ''} onClick={() => setActiveClip(index)}><span>{index + 1}</span><div><b>{clip.title}</b><small>镜头 {clip.range}</small></div><i>▦</i></button>)}</div>
       </aside>
-      <main className="director-sequence">
-        <header className="scene-banner"><b>01</b><strong>{scene?.location || '当前场次'}</strong><span>{scene?.time || '未设定时间'}　|　{scene?.atmosphere || '未设定氛围'}</span></header>
-        {shotsByScene.map(({ shot, index }) => {
-          const frame = shot.keyframes?.find((keyframe) => keyframe.type === 'start');
-          const characterNames = shot.characters.map((id) => script?.characters.find((character) => character.id === id)?.name).filter(Boolean);
+      <main className="director-shot-column">
+        <header className="director-column-title"><b>镜头列表</b><em>{project.shots.length}</em></header>
+        <div className="director-shot-scroll">{shots.map(({ shot, index }) => {
           const editingThis = editing === shot.id;
-          return <article className="director-shot" key={shot.id}>
-            <div className="shot-side"><b>镜头 {String(index + 1).padStart(3, '0')}</b><span>{shot.shotSize || '中景 MS'}</span><small>{shot.cameraMovement || '稳定镜头'}</small></div>
-            <div className="shot-main">
-              <div className="shot-content-head"><p>画面</p><button onClick={() => setEditing(editingThis ? null : shot.id)}><Pencil size={16}/>{editingThis ? '完成' : '编辑'}</button></div>
-              {editingThis ? <textarea autoFocus value={shot.actionSummary} onChange={(event) => updateShot(shot.id, { actionSummary: event.target.value })}/> : <p className="shot-action">{shot.actionSummary}</p>}
-              {shot.dialogue && <blockquote>{editingThis ? <textarea value={shot.dialogue} onChange={(event) => updateShot(shot.id, { dialogue: event.target.value })}/> : `“${shot.dialogue}”`}</blockquote>}
-              <div className="shot-tags">{characterNames.map((name) => <i key={name}>{name}</i>)}</div>
-            </div>
-            <aside className="shot-prompt"><h3>画面提示词</h3><textarea value={frame?.visualPrompt || ''} placeholder="基于角色、场景和动作生成的画面提示词会显示在这里。" onChange={(event) => {
-              const keyframes = shot.keyframes.map((keyframe) => keyframe.type === 'start' ? { ...keyframe, visualPrompt: event.target.value } : keyframe);
-              updateShot(shot.id, { keyframes });
-            }}/><div className="shot-frame">{frame?.imageUrl ? <img src={frame.imageUrl} alt="镜头首帧"/> : <ImageIcon size={28}/>}</div></aside>
+          const characterNames = shot.characters.map((id) => script?.characters.find((character) => character.id === id)?.name).filter(Boolean);
+          return <article className="director-shot-card" key={shot.id}>
+            <header><span>#{index + 1}</span><b>{shot.shotSize || '中景 MS'}</b><button onClick={() => setEditing(editingThis ? null : shot.id)}><Pencil size={16}/>{editingThis ? '完成' : '编辑'}</button></header>
+            <div className="director-shot-card-main"><section><small>▣ 画面</small>{editingThis ? <textarea autoFocus value={shot.actionSummary} onChange={(event) => updateShot(shot.id, { actionSummary: event.target.value })}/> : <p>{shot.actionSummary}</p>}</section><aside><small>◷ 时长</small><b>{shot.duration || 5} 秒</b></aside></div>
+            <div className="shot-audio"><small>▱ 音频（对白 / 旁白 / 音效 / 环境音 / 音乐）</small>{shot.dialogue && <p><i>对白</i>{editingThis ? <input value={shot.dialogue} onChange={(event) => updateShot(shot.id, { dialogue: event.target.value })}/> : `“${shot.dialogue}”`}</p>}</div>
+            <footer><span>⌖ {scene?.location || '未指定场景'}</span>{characterNames.map((name) => <span key={name}>♙ {name}</span>)}</footer>
           </article>;
-        })}
+        })}</div>
       </main>
+      <aside className="director-storyboard">
+        <header><b>▧ 故事板</b><div><button>v1⌄</button><button className="director-board-create"><Sparkles size={15}/>生成新版本</button></div></header>
+        <div className="storyboard-grid">{shots.slice(0, 6).map(({ shot, index }) => {
+          const image = shot.keyframes?.find((frame) => frame.type === 'start')?.imageUrl;
+          return <button key={shot.id} className="storyboard-tile" onClick={() => setEditing(shot.id)}>{image ? <img src={image} alt={`镜头 ${index + 1}`}/> : <ImageIcon size={26}/>}<span>镜头 {String(index + 1).padStart(2, '0')}</span></button>;
+        })}</div>
+        <section className="director-video-panel"><header><b>▣ 视频</b><button><Play size={16}/>生成视频</button></header><div><Clapperboard size={42}/><p>暂无视频</p><small>生成视频以预览最终效果</small></div></section>
+      </aside>
     </div>
   </section>;
 };
