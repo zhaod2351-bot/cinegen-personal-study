@@ -79,10 +79,12 @@ const StageScript: React.FC<Props> = ({ project, updateProject }) => {
         isParsingScript: true
       });
 
-      const scriptData = await parseScriptToData(localScript, localLanguage);
+      const creativeContext = `主画风：${project.artStyle || '未设置'}；作品标签：${(project.styleTags || []).join('、') || '未设置'}；画幅：${project.aspectRatio || '16:9'}；目标时长：${finalDuration}`;
+      const scriptData = await parseScriptToData(localScript, localLanguage, creativeContext);
       
       scriptData.targetDuration = finalDuration;
       scriptData.language = localLanguage;
+      if (project.artStyle) scriptData.genre = `${project.artStyle}${project.styleTags?.length ? ` · ${project.styleTags.join('、')}` : ''}`;
 
       if (localTitle && localTitle !== "未命名项目") {
         scriptData.title = localTitle;
