@@ -52,3 +52,10 @@
 }
 .asset-more-menu button:hover { background: #f6eee2; }
 .asset-more-menu button.danger { color: #b83225; }
+
+.home-side > button { display: flex; align-items: center; }
+.home-section-title > button { border: 0; background: transparent; color: #7c6a59; cursor: pointer; }
+.asset-summary-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 40px; }
+.asset-summary-cards article { display: flex; min-height: 118px; flex-direction: column; justify-content: center; border: 1px solid #ded3c4; border-radius: 9px; background: #fffdf8; padding: 24px; }
+.asset-summary-cards b { color: #c4510c; font-size: 32px; }
+.asset-summary-cards span { margin-top: 5px; color: #7c6a59; font-size: 14px; }
