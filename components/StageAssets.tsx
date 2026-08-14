@@ -179,7 +179,7 @@ const StageAssets: React.FC<Props> = ({ project, updateProject }) => {
                           </div>
                           <div>
                               <h3 className="text-lg font-bold text-white">{selectedChar.name}</h3>
-                              <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider">Wardrobe & Variations</p>
+                              <p className="text-xs text-zinc-500 font-mono tracking-wider">造型与变体</p>
                           </div>
                       </div>
                       <button onClick={() => setSelectedCharId(null)} className="p-2 hover:bg-zinc-800 rounded-full transition-colors">
@@ -193,16 +193,16 @@ const StageAssets: React.FC<Props> = ({ project, updateProject }) => {
                           {/* Base Look */}
                           <div>
                               <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                  <User className="w-4 h-4" /> Base Appearance
+                                  <User className="w-4 h-4" /> 基础形象
                               </h4>
                               <div className="bg-[#0A0A0A] p-4 rounded-xl border border-zinc-800">
                                   <div className="aspect-[3/4] bg-zinc-900 rounded-lg overflow-hidden mb-4 relative">
                                       {selectedChar.referenceImage ? (
                                           <img src={selectedChar.referenceImage} className="w-full h-full object-cover" />
                                       ) : (
-                                          <div className="flex items-center justify-center h-full text-zinc-700">No Image</div>
+                                          <div className="flex items-center justify-center h-full text-zinc-700">暂无图片</div>
                                       )}
-                                      <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 backdrop-blur rounded text-[10px] text-white font-bold uppercase border border-white/10">Default</div>
+                                      <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 backdrop-blur rounded text-[10px] text-white font-bold border border-white/10">基础形象</div>
                                   </div>
                                   <p className="text-xs text-zinc-500 leading-relaxed font-mono">{selectedChar.visualPrompt}</p>
                               </div>
@@ -212,7 +212,7 @@ const StageAssets: React.FC<Props> = ({ project, updateProject }) => {
                           <div>
                               <div className="flex items-center justify-between mb-4">
                                   <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-                                      <Shirt className="w-4 h-4" /> Variations / Outfits
+                                      <Shirt className="w-4 h-4" /> 造型变体
                                   </h4>
                               </div>
 
@@ -246,7 +246,7 @@ const StageAssets: React.FC<Props> = ({ project, updateProject }) => {
                                                   className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 hover:text-white flex items-center gap-1 transition-colors"
                                               >
                                                   <RefreshCw className={`w-3 h-3 ${generatingId === variation.id ? 'animate-spin' : ''}`} />
-                                                  {variation.referenceImage ? 'Regenerate' : 'Generate Look'}
+                                                  {variation.referenceImage ? '重新生成' : '生成造型'}
                                               </button>
                                           </div>
                                       </div>
@@ -257,13 +257,13 @@ const StageAssets: React.FC<Props> = ({ project, updateProject }) => {
                                       <div className="space-y-3">
                                           <input 
                                               type="text" 
-                                              placeholder="Variation Name (e.g. Tactical Gear)" 
+                                              placeholder="变体名称（如：战术装备）" 
                                               value={newVarName}
                                               onChange={e => setNewVarName(e.target.value)}
                                               className="w-full bg-[#141414] border border-zinc-800 rounded px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600"
                                           />
                                           <textarea 
-                                              placeholder="Visual description of outfit/state..."
+                                              placeholder="服装或状态的视觉描述…"
                                               value={newVarPrompt}
                                               onChange={e => setNewVarPrompt(e.target.value)}
                                               className="w-full bg-[#141414] border border-zinc-800 rounded px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600 resize-none h-16"
@@ -273,7 +273,7 @@ const StageAssets: React.FC<Props> = ({ project, updateProject }) => {
                                               disabled={!newVarName || !newVarPrompt}
                                               className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
                                           >
-                                              <Plus className="w-3 h-3" /> Add Variation
+                                              <Plus className="w-3 h-3" /> 添加变体
                                           </button>
                                       </div>
                                   </div>
