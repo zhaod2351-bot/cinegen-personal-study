@@ -51,10 +51,11 @@ const cleanJsonString = (str: string): string => {
  * Agent 1 & 2: Script Structuring & Breakdown
  * Uses gemini-2.5-flash for fast, structured text generation.
  */
-export const parseScriptToData = async (rawText: string, language: string = '中文'): Promise<ScriptData> => {
+export const parseScriptToData = async (rawText: string, language: string = '中文', creativeContext: string = ''): Promise<ScriptData> => {
   const ai = getAiClient();
   const prompt = `
     Analyze the text and output a JSON object in the language: ${language}.
+    Project visual direction: ${creativeContext || 'No fixed visual direction.'}
     
     Tasks:
     1. Extract title, genre, logline (in ${language}).
