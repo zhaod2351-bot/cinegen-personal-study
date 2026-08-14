@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import type { SecretProtector } from "./windowsDpapi";
 import type {
   AiSettingsUpdate,
   PublicAiSettings,
@@ -9,11 +10,6 @@ import type {
   RuntimeAiSettings,
   RuntimeProviderSettings,
 } from "./types";
-
-type SecretProtector = {
-  protect(value: string): Promise<string>;
-  unprotect(value: string): Promise<string>;
-};
 
 type StoredProviderSettings = {
   baseUrl: string;
