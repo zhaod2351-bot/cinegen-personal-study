@@ -25,6 +25,14 @@ export interface Scene {
   referenceImage?: string; // URL
 }
 
+export interface PropAsset {
+  id: string;
+  name: string;
+  description: string;
+  visualPrompt?: string;
+  referenceImage?: string;
+}
+
 export interface Keyframe {
   id: string;
   type: 'start' | 'end';
@@ -64,6 +72,7 @@ export interface ScriptData {
   language?: string; 
   characters: Character[];
   scenes: Scene[];
+  props?: PropAsset[];
   storyParagraphs: { id: number; text: string; sceneRefId: string }[];
 }
 
