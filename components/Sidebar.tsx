@@ -10,11 +10,11 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ currentStage, setStage, onExit, projectName }) => {
   const navItems = [
-    { id: 'script', label: '剧本与故事', icon: FileText, sub: 'Phase 01' },
-    { id: 'import', label: '导入式剧本', icon: FileInput, sub: 'Import' },
-    { id: 'assets', label: '角色与场景', icon: Users, sub: 'Phase 02' },
-    { id: 'director', label: '导演工作台', icon: Clapperboard, sub: 'Phase 03' },
-    { id: 'export', label: '成片与导出', icon: Film, sub: 'Phase 04' },
+    { id: 'script', label: '剧本与故事', icon: FileText, sub: '第一步' },
+    { id: 'import', label: '导入式剧本', icon: FileInput, sub: '导入' },
+    { id: 'assets', label: '角色与场景', icon: Users, sub: '第二步' },
+    { id: 'director', label: '导演工作台', icon: Clapperboard, sub: '第三步' },
+    { id: 'export', label: '成片与导出', icon: Film, sub: '第四步' },
   ];
 
   return (
@@ -27,7 +27,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentStage, setStage, onExit, proje
           </div>
           <div className="overflow-hidden">
             <h1 className="text-sm font-bold text-white tracking-wider uppercase">CineGen AI</h1>
-            <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Studio Pro</p>
+            <p className="text-[10px] text-zinc-500 tracking-widest">个人学习版</p>
           </div>
         </div>
 
