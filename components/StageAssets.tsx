@@ -32,8 +32,8 @@ const StageAssets: React.FC<Props> = ({ project, updateProject, onOpenDirector }
   return <div className="h-full min-h-0 flex bg-[#121212] text-zinc-200">
     <aside className="w-[340px] shrink-0 border-r border-zinc-800 bg-[#151515] flex flex-col">
       <div className="p-5 border-b border-zinc-800"><div className="flex rounded-lg overflow-hidden border border-zinc-700">
-        <button onClick={() => { setKind('character'); setSelectedId(data.characters[0]?.id || ''); }} className={`flex-1 py-2 text-sm ${kind==='character'?'bg-zinc-800 text-white':'text-zinc-500'}`}>角色</button>
-        <button onClick={() => { setKind('scene'); setSelectedId(data.scenes[0]?.id || ''); }} className={`flex-1 py-2 text-sm ${kind==='scene'?'bg-zinc-800 text-white':'text-zinc-500'}`}>场景</button>
+        <button onClick={() => { setKind('character'); setSelectedId(data.characters[0]?.id || ''); }} className={`flex-1 py-2 text-sm transition-colors ${kind==='character'?'bg-orange-100 text-orange-900 border border-orange-300':'text-zinc-500 hover:bg-orange-50'}`}>角色</button>
+        <button onClick={() => { setKind('scene'); setSelectedId(data.scenes[0]?.id || ''); }} className={`flex-1 py-2 text-sm transition-colors ${kind==='scene'?'bg-orange-100 text-orange-900 border border-orange-300':'text-zinc-500 hover:bg-orange-50'}`}>场景</button>
         <button disabled className="flex-1 py-2 text-sm text-zinc-700">道具（即将加入）</button>
       </div><label className="mt-4 flex gap-2 items-center border border-zinc-700 rounded-lg px-3 py-2 text-zinc-400"><Search className="w-4 h-4"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="搜索素材..." className="w-full bg-transparent outline-none text-sm"/></label></div>
       <div className="px-5 py-3 text-xs text-zinc-500 flex justify-between"><span>{typeLabel}素材</span><span>{items.length} 个</span></div>
