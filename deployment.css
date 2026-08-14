@@ -2,3 +2,53 @@
 .style-gallery button > span {
   background-image: url('/art-style-sheet.png') !important;
 }
+
+.asset-inline-input {
+  width: min(360px, 45vw);
+  border: 1px solid #d8c9b8;
+  border-radius: 7px;
+  background: #fffdf9;
+  padding: 7px 10px;
+  color: #2d261f;
+  font-size: 28px;
+  font-weight: 800;
+  outline: none;
+}
+
+.asset-metadata input {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid #ded5c8;
+  border-radius: 6px;
+  background: #fffdf9;
+  padding: 6px 8px;
+  color: #2d261f;
+}
+
+.asset-more { position: relative; }
+.asset-more-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 30;
+  width: 164px;
+  overflow: hidden;
+  border: 1px solid #ded5c8;
+  border-radius: 8px;
+  background: #fffdf9;
+  box-shadow: 0 14px 35px rgba(55, 36, 20, .16);
+}
+.asset-more-menu button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 0;
+  padding: 10px 12px;
+  background: transparent;
+  color: #40372f;
+  font-size: 13px;
+}
+.asset-more-menu button:hover { background: #f6eee2; }
+.asset-more-menu button.danger { color: #b83225; }

@@ -13,6 +13,7 @@ export interface Character {
   personality: string;
   visualPrompt?: string;
   referenceImage?: string; // Base URL
+  tags?: string[];
   variations: CharacterVariation[]; // Added: List of alternative looks
 }
 
@@ -23,6 +24,7 @@ export interface Scene {
   atmosphere: string;
   visualPrompt?: string;
   referenceImage?: string; // URL
+  tags?: string[];
 }
 
 export interface PropAsset {
@@ -31,6 +33,7 @@ export interface PropAsset {
   description: string;
   visualPrompt?: string;
   referenceImage?: string;
+  tags?: string[];
 }
 
 export interface Keyframe {
@@ -59,6 +62,7 @@ export interface Shot {
   cameraMovement: string;
   shotSize?: string; 
   characters: string[]; // Character IDs
+  props?: string[]; // Prop asset IDs
   characterVariations?: { [characterId: string]: string }; // Added: Map char ID to variation ID for this shot
   keyframes: Keyframe[];
   interval?: VideoInterval;
