@@ -78,6 +78,9 @@ export interface ProjectState {
   rawScript: string;
   targetDuration: string;
   language: string; 
+  artStyle?: string;
+  styleTags?: string[];
+  aspectRatio?: string;
   
   scriptData: ScriptData | null;
   shots: Shot[];
