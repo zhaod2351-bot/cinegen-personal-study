@@ -1,169 +1,119 @@
-import React from 'react';
-import { Film, Download, Share2, FileVideo, Layers, Clock, CheckCircle, BarChart3 } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Film, Download, Share2, FileJson, Layers, Clock, CheckCircle, BarChart3 } from 'lucide-react';
 import { ProjectState } from '../types';
 
 interface Props {
   project: ProjectState;
+  updateProject: (updates: Partial<ProjectState>) => void;
 }
 
+const downloadJson = (filename: string, data: unknown) => {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+};
+
 const StageExport: React.FC<Props> = ({ project }) => {
-  const completedShots = project.shots.filter(s => s.interval?.videoUrl);
+  const [notice, setNotice] = useState('');
+  const completedShots = project.shots.filter((shot) => shot.interval?.videoUrl);
   const totalShots = project.shots.length;
-  const progress = totalShots > 0 ? Math.round((completedShots.length / totalShots) * 100) : 0;
-  
-  // Calculate total duration roughly
-  const estimatedDuration = project.shots.reduce((acc, s) => acc + (s.interval?.duration || 3), 0);
+  const progress = totalShots ? Math.round((completedShots.length / totalShots) * 100) : 0;
+  const estimatedDuration = project.shots.reduce((sum, shot) => sum + (shot.interval?.duration || 3), 0);
+  const title = project.scriptData?.title || project.title || '未命名项目';
+
+  const manifest = useMemo(() => ({
+    schemaVersion: 1,
+    project: { id: project.id, title: project.title, targetDuration: project.targetDuration },
+    script: project.scriptData,
+    characters: project.characters,
+    locations: project.locations,
+    props: project.scriptData?.props || [],
+    shots: project.shots,
+    exportedAt: new Date().toISOString(),
+  }), [project]);
+
+  const exportManifest = () => downloadJson(`${title}-导演工程.json`, manifest);
+  const exportAssets = () => downloadJson(`${title}-资产清单.json`, {
+    characters: project.characters,
+    locations: project.locations,
+    props: project.scriptData?.props || [],
+  });
+
+  const copyShareLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setNotice('当前个人版链接已复制；项目数据仍保存在本机浏览器。');
+    } catch {
+      setNotice('浏览器未授予剪贴板权限，请从地址栏复制当前链接。');
+    }
+  };
 
   return (
-    <div className="flex flex-col h-full bg-[#121212] overflow-hidden">
-      
-      {/* Header - Consistent with Director */}
-      <div className="h-16 border-b border-zinc-800 bg-[#1A1A1A] px-6 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-4">
-              <h2 className="text-lg font-bold text-white flex items-center gap-3">
-                  <Film className="w-5 h-5 text-indigo-500" />
-                  成片与导出
-              <span className="text-xs text-zinc-600 font-mono font-normal tracking-wider bg-black/30 px-2 py-1 rounded">渲染与导出</span>
-              </h2>
-          </div>
-          <div className="flex items-center gap-2">
-             <span className="text-[10px] text-zinc-500 font-mono uppercase bg-zinc-900 border border-zinc-800 px-2 py-1 rounded">
-               状态：{progress === 100 ? '已就绪' : '进行中'}
-             </span>
-          </div>
-      </div>
+    <div className="flex h-full flex-col overflow-hidden bg-[#fffdf9] text-[#2d261f]">
+      <header className="flex h-[82px] shrink-0 items-center justify-between border-b border-[#ded5c8] px-7">
+        <div>
+          <h2 className="flex items-center gap-2 text-[20px] font-bold"><Film className="h-5 w-5 text-[#c4510c]" />成片与导出</h2>
+          <p className="mt-1 text-xs text-[#8d7e70]">汇总镜头、视频和资产，导出可继续编辑的导演工程。</p>
+        </div>
+        <span className="rounded-md border border-[#ded5c8] bg-[#fbf7ef] px-3 py-1.5 text-xs">
+          状态：{progress === 100 ? '已就绪' : '制作中'}
+        </span>
+      </header>
 
-      <div className="flex-1 overflow-y-auto p-8 md:p-12">
-        <div className="max-w-6xl mx-auto space-y-8">
-          
-          {/* Main Status Panel */}
-          <div className="bg-[#141414] border border-zinc-800 rounded-xl p-8 shadow-2xl relative overflow-hidden group">
-             {/* Background Decoration */}
-             <div className="absolute top-0 right-0 p-48 bg-indigo-900/5 blur-[120px] rounded-full pointer-events-none"></div>
-             <div className="absolute bottom-0 left-0 p-32 bg-emerald-900/5 blur-[100px] rounded-full pointer-events-none"></div>
+      <div className="flex-1 overflow-y-auto p-7">
+        <div className="mx-auto max-w-[1180px] space-y-6">
+          {notice && <div className="rounded-lg border border-[#e7c9aa] bg-[#fff5e8] px-4 py-3 text-sm text-[#9d430c]">{notice}</div>}
 
-             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 relative z-10 gap-6">
-               <div>
-                 <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-2xl md:text-3xl font-bold text-white tracking-tight">{project.scriptData?.title || '未命名项目'}</h3>
-                    <span className="px-2 py-0.5 bg-zinc-900 border border-zinc-700 text-zinc-400 text-[10px] rounded font-mono tracking-wider">主序列</span>
-                 </div>
-                 <div className="flex items-center gap-6 mt-3">
-                    <div className="flex flex-col">
-                        <span className="text-[9px] text-zinc-600 tracking-widest font-bold mb-0.5">镜头</span>
-                        <span className="text-sm font-mono text-zinc-300">{project.shots.length}</span>
-                    </div>
-                    <div className="w-px h-6 bg-zinc-800"></div>
-                    <div className="flex flex-col">
-                        <span className="text-[9px] text-zinc-600 tracking-widest font-bold mb-0.5">预计时长</span>
-                        <span className="text-sm font-mono text-zinc-300">~{estimatedDuration}s</span>
-                    </div>
-                    <div className="w-px h-6 bg-zinc-800"></div>
-                    <div className="flex flex-col">
-                        <span className="text-[9px] text-zinc-600 tracking-widest font-bold mb-0.5">目标时长</span>
-                        <span className="text-sm font-mono text-zinc-300">{project.targetDuration}</span>
-                    </div>
-                 </div>
-               </div>
-               
-               <div className="text-right bg-black/20 p-4 rounded-lg border border-white/5 backdrop-blur-sm min-w-[160px]">
-                 <div className="flex items-baseline justify-end gap-1 mb-1">
-                     <span className="text-3xl font-mono font-bold text-indigo-400">{progress}</span>
-                     <span className="text-sm text-zinc-500">%</span>
-                 </div>
-                 <div className="text-[10px] text-zinc-500 uppercase tracking-widest flex items-center justify-end gap-2">
-                    {progress === 100 ? <CheckCircle className="w-3 h-3 text-green-500" /> : <BarChart3 className="w-3 h-3" />}
-                    渲染状态
-                 </div>
-               </div>
-             </div>
-
-             {/* Timeline Visualizer Strip */}
-             <div className="mb-10">
-                <div className="flex justify-between text-[10px] text-zinc-600 font-mono uppercase tracking-widest mb-2 px-1">
-                    <span>镜头时间线</span>
-                    <span>TC 00:00:00:00</span>
+          <section className="rounded-xl border border-[#ded5c8] bg-white p-7 shadow-[0_8px_26px_rgba(80,55,30,0.05)]">
+            <div className="mb-8 flex flex-wrap items-start justify-between gap-5">
+              <div>
+                <div className="mb-2 flex items-center gap-3">
+                  <h3 className="text-2xl font-bold">{title}</h3>
+                  <span className="rounded bg-[#f3eadc] px-2 py-1 text-[10px] text-[#7f6d5d]">主序列</span>
                 </div>
-                <div className="h-20 bg-[#080808] rounded-lg border border-zinc-800 flex items-center px-2 gap-1 overflow-x-auto custom-scrollbar relative shadow-inner">
-                   {project.shots.length === 0 ? (
-                      <div className="w-full flex items-center justify-center text-zinc-800 text-xs font-mono uppercase tracking-widest">
-                          <Film className="w-4 h-4 mr-2" />
-                          暂无镜头
-                      </div>
-                   ) : (
-                      project.shots.map((shot, idx) => {
-                        const isDone = !!shot.interval?.videoUrl;
-                        return (
-                          <div 
-                            key={shot.id} 
-                            className={`h-14 min-w-[4px] flex-1 rounded-[2px] transition-all relative group flex flex-col justify-end overflow-hidden ${
-                              isDone
-                                ? 'bg-indigo-900/40 border border-indigo-500/30 hover:bg-indigo-500/40' 
-                                : 'bg-zinc-900 border border-zinc-800 hover:bg-zinc-800'
-                            }`}
-                            title={`镜头 ${idx+1}：${shot.actionSummary}`}
-                          >
-                             {/* Mini Progress Bar inside timeline segment */}
-                             {isDone && <div className="h-full w-full bg-indigo-500/20"></div>}
-                             
-                             {/* Hover Tooltip */}
-                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-20 whitespace-nowrap">
-                                <div className="bg-black text-white text-[10px] px-2 py-1 rounded border border-zinc-700 shadow-xl">
-                                    镜头 {idx + 1}
-                                </div>
-                             </div>
-                          </div>
-                        )
-                      })
-                   )}
+                <div className="flex gap-6 text-sm text-[#6f6257]">
+                  <span>镜头 <b className="ml-1 text-[#2d261f]">{totalShots}</b></span>
+                  <span>预计时长 <b className="ml-1 text-[#2d261f]">{estimatedDuration} 秒</b></span>
+                  <span>目标时长 <b className="ml-1 text-[#2d261f]">{project.targetDuration} 秒</b></span>
                 </div>
-             </div>
-
-             {/* Action Buttons */}
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <button 
-                  disabled={progress < 100} 
-                  className={`h-12 rounded-lg flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-widest transition-all border ${
-                 progress === 100 
-                   ? 'bg-white text-black hover:bg-zinc-200 border-white shadow-lg shadow-white/5' 
-                   : 'bg-zinc-900 text-zinc-600 border-zinc-800 cursor-not-allowed'
-               }`}>
-                 <Download className="w-4 h-4" />
-                 下载成片（.mp4）
-               </button>
-               
-               <button className="h-12 bg-[#1A1A1A] hover:bg-zinc-800 text-zinc-300 border border-zinc-700 hover:border-zinc-500 rounded-lg flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-widest transition-all">
-                 <FileVideo className="w-4 h-4" />
-                 Export EDL / XML
-               </button>
-             </div>
-          </div>
-
-          {/* Secondary Options */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="p-5 bg-[#141414] border border-zinc-800 rounded-xl hover:border-zinc-600 transition-colors group cursor-pointer flex flex-col justify-between h-32">
-                  <Layers className="w-5 h-5 text-zinc-600 group-hover:text-indigo-400 mb-4 transition-colors" />
-                  <div>
-                    <h4 className="text-sm font-bold text-white mb-1">源资产</h4>
-                    <p className="text-[10px] text-zinc-500">下载已生成的图片与原始视频片段。</p>
-                  </div>
               </div>
-              <div className="p-5 bg-[#141414] border border-zinc-800 rounded-xl hover:border-zinc-600 transition-colors group cursor-pointer flex flex-col justify-between h-32">
-                  <Share2 className="w-5 h-5 text-zinc-600 group-hover:text-indigo-400 mb-4 transition-colors" />
-                  <div>
-                    <h4 className="text-sm font-bold text-white mb-1">分享项目</h4>
-                    <p className="text-[10px] text-zinc-500">创建供审阅使用的只读链接。</p>
-                  </div>
+              <div className="min-w-[150px] rounded-lg bg-[#fbf7ef] p-4 text-right">
+                <div className="text-3xl font-bold text-[#c4510c]">{progress}<span className="text-sm">%</span></div>
+                <div className="mt-1 flex items-center justify-end gap-1.5 text-[11px] text-[#8d7e70]">
+                  {progress === 100 ? <CheckCircle className="h-3.5 w-3.5 text-emerald-600" /> : <BarChart3 className="h-3.5 w-3.5" />}
+                  视频完成度
+                </div>
               </div>
-              <div className="p-5 bg-[#141414] border border-zinc-800 rounded-xl hover:border-zinc-600 transition-colors group cursor-pointer flex flex-col justify-between h-32">
-                  <Clock className="w-5 h-5 text-zinc-600 group-hover:text-indigo-400 mb-4 transition-colors" />
-                  <div>
-                    <h4 className="text-sm font-bold text-white mb-1">渲染记录</h4>
-                    <p className="text-[10px] text-zinc-500">查看生成历史与资源使用情况。</p>
-                  </div>
-              </div>
-          </div>
+            </div>
 
+            <div className="mb-7">
+              <div className="mb-2 flex justify-between text-[11px] text-[#8d7e70]"><span>镜头时间线</span><span>TC 00:00:00:00</span></div>
+              <div className="flex h-20 items-center gap-1 overflow-x-auto rounded-lg border border-[#e7ded2] bg-[#fbf7ef] p-2">
+                {totalShots === 0 ? <div className="w-full text-center text-xs text-[#aa9b8c]">暂无镜头</div> : project.shots.map((shot, index) => (
+                  <div key={shot.id} title={`镜头 ${index + 1}：${shot.actionSummary}`} className={`h-14 min-w-[18px] flex-1 rounded border ${shot.interval?.videoUrl ? 'border-[#e4a36f] bg-[#f2c9a7]' : 'border-[#ded5c8] bg-white'}`} />
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button onClick={() => setNotice(progress === 100 ? '视频合成 API 尚未配置；现有视频片段不会丢失。' : '请先完成全部镜头的视频生成。')} className={`flex h-12 items-center justify-center gap-2 rounded-lg border text-sm font-semibold ${progress === 100 ? 'border-[#c4510c] bg-[#c4510c] text-white' : 'border-[#ded5c8] bg-[#f5f0e9] text-[#a6988a]'}`}>
+                <Download className="h-4 w-4" />下载成片（MP4）
+              </button>
+              <button onClick={exportManifest} className="flex h-12 items-center justify-center gap-2 rounded-lg border border-[#cdbfae] bg-white text-sm font-semibold hover:bg-[#fbf7ef]">
+                <FileJson className="h-4 w-4" />导出导演工程（JSON）
+              </button>
+            </div>
+          </section>
+
+          <section className="grid gap-4 md:grid-cols-3">
+            <button onClick={exportAssets} className="flex min-h-[120px] flex-col items-start justify-between rounded-xl border border-[#ded5c8] bg-white p-5 text-left hover:border-[#c4510c]"><Layers className="h-5 w-5 text-[#c4510c]" /><span><b className="block text-sm">源资产清单</b><small className="mt-1 block text-[#8d7e70]">下载角色、场景、道具和参考图信息。</small></span></button>
+            <button onClick={copyShareLink} className="flex min-h-[120px] flex-col items-start justify-between rounded-xl border border-[#ded5c8] bg-white p-5 text-left hover:border-[#c4510c]"><Share2 className="h-5 w-5 text-[#c4510c]" /><span><b className="block text-sm">分享当前页面</b><small className="mt-1 block text-[#8d7e70]">复制个人版地址，并明确本地数据边界。</small></span></button>
+            <button onClick={() => setNotice(`当前有 ${completedShots.length} 个镜头包含视频，${totalShots - completedShots.length} 个待生成。`)} className="flex min-h-[120px] flex-col items-start justify-between rounded-xl border border-[#ded5c8] bg-white p-5 text-left hover:border-[#c4510c]"><Clock className="h-5 w-5 text-[#c4510c]" /><span><b className="block text-sm">制作记录</b><small className="mt-1 block text-[#8d7e70]">查看当前工程的视频完成情况。</small></span></button>
+          </section>
         </div>
       </div>
     </div>
