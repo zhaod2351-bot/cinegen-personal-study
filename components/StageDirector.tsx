@@ -359,8 +359,18 @@ const StageDirector: React.FC<Props> = ({ project, updateProject }) => {
           </div>
       </div>
 
+      <div className="shrink-0 px-8 py-5 bg-[#181818] border-b border-zinc-800 flex items-center justify-between">
+          <div><span className="text-2xl font-mono font-bold text-zinc-500 mr-4">01</span><span className="text-xl font-bold text-white">{project.scriptData?.scenes[0]?.location || '当前场次'}</span></div>
+          <div className="text-xs text-zinc-500">{project.scriptData?.scenes[0]?.time || '未设定时间'}　|　{project.scriptData?.scenes[0]?.atmosphere || '未设定氛围'}</div>
+      </div>
+
       {/* Main Content Area */}
       <div className="flex-1 overflow-hidden flex">
+          <aside className="w-72 shrink-0 border-r border-zinc-800 bg-[#151515] overflow-y-auto p-5 space-y-7">
+              <section><h3 className="text-xs font-bold text-zinc-400 tracking-widest mb-3">故事梗概</h3><p className="text-sm text-zinc-400 leading-6 italic">“{project.scriptData?.logline || '尚未填写故事梗概。'}”</p></section>
+              <section className="border-t border-zinc-800 pt-5"><h3 className="text-xs font-bold text-zinc-400 tracking-widest mb-3">演员表</h3><div className="space-y-3">{project.scriptData?.characters.map(char => <div key={char.id} className="flex justify-between text-sm"><span>{char.name}</span><span className="text-zinc-500">{char.gender || '未知'}</span></div>)}</div></section>
+              <section className="border-t border-zinc-800 pt-5"><h3 className="text-xs font-bold text-zinc-400 tracking-widest mb-3">场景列表</h3><div className="space-y-3">{project.scriptData?.scenes.map(scene => <div key={scene.id} className="flex gap-2 text-sm text-zinc-400"><MapPin className="w-4 h-4 shrink-0 text-zinc-600"/><span>{scene.location}</span></div>)}</div></section>
+          </aside>
           
           {/* Grid View - Responsive Logic */}
           <div className={`flex-1 overflow-y-auto p-6 transition-all duration-500 ease-in-out ${activeShotId ? 'border-r border-zinc-800' : ''}`}>
