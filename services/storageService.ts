@@ -35,7 +35,7 @@ export const saveProjectToDB = async (project: ProjectState): Promise<void> => {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite");
     const store = tx.objectStore(STORE_NAME);
-    const p = { ...project, lastModified: Date.now() };
+    const p = { ...migrateProject(project), lastModified: Date.now() };
     const request = store.put(p);
     request.onsuccess = () => {
       channel?.postMessage({
@@ -56,7 +56,7 @@ export const getAllProjectsMetadata = async (): Promise<ProjectState[]> => {
     const store = tx.objectStore(STORE_NAME);
     const request = store.getAll();
     request.onsuccess = () => {
-      const projects = request.result as ProjectState[];
+      const projects = (request.result as unknown[]).map(migrateProject);
       // Sort by last modified descending
       projects.sort((a, b) => b.lastModified - a.lastModified);
       resolve(projects);
@@ -93,7 +93,7 @@ export const getProjectById = async (
       .objectStore(STORE_NAME)
       .get(id);
     request.onsuccess = () =>
-      resolve(request.result as ProjectState | undefined);
+      resolve(request.result ? migrateProject(request.result) : undefined);
     request.onerror = () => reject(request.error);
   });
 };
@@ -145,5 +145,21 @@ export const createNewProjectState = (
     scriptData: null,
     shots: [],
     isParsingScript: false,
+    directorClips: [],
+    storyboardVersions: [],
+    activeAiJobs: {},
   };
+};
+
+export const migrateProject = (project: unknown): ProjectState => {
+  const source = project as Partial<ProjectState> & Record<string, unknown>;
+  return {
+    ...source,
+    directorClips: Array.isArray(source.directorClips) ? source.directorClips : [],
+    storyboardVersions: Array.isArray(source.storyboardVersions) ? source.storyboardVersions : [],
+    activeAiJobs:
+      source.activeAiJobs && typeof source.activeAiJobs === "object" && !Array.isArray(source.activeAiJobs)
+        ? source.activeAiJobs
+        : {},
+  } as ProjectState;
 };

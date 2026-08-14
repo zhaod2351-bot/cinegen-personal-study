@@ -98,4 +98,33 @@ export interface ProjectState {
   scriptData: ScriptData | null;
   shots: Shot[];
   isParsingScript: boolean;
+
+  // AI workflow data (added by storage migration for older projects)
+  directorClips: DirectorClipState[];
+  storyboardVersions: StoryboardVersion[];
+  activeAiJobs: Record<string, ActiveAiJob>;
+}
+
+export interface DirectorClipState {
+  id: string;
+  title: string;
+  summary: string;
+  shots: unknown[];
+}
+
+export interface StoryboardVersion {
+  id: string;
+  clipId: string;
+  version: number;
+  imagePath: string;
+  metadataPath?: string;
+  createdAt: number;
+}
+
+export interface ActiveAiJob {
+  jobId: string;
+  kind: "director-plan" | "storyboard";
+  status: "queued" | "in_progress" | "completed" | "failed";
+  progress: number;
+  error?: string;
 }
