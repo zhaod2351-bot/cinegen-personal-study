@@ -2,20 +2,22 @@ import "dotenv/config";
 import { resolve } from "node:path";
 import { createApp } from "./app";
 import { loadServerConfig } from "./config";
-import { JobRunner } from "./jobs/jobRunner";
-import { JobStore } from "./jobs/jobStore";
-import { OpenAIGateway } from "./openaiGateway";
+import { createAiRuntime } from "./runtime";
 
 const config = loadServerConfig(process.env);
-const store = new JobStore(resolve(".cinegen-ai", "jobs"));
-const runner = new JobRunner({
-  store,
-  gateway: new OpenAIGateway(async () => config.aiDefaults),
+const runtime = createAiRuntime({
+  settingsFilePath: resolve(
+    process.env.LOCALAPPDATA ?? ".cinegen-ai",
+    "CineGen",
+    "ai-settings.json",
+  ),
+  jobDirectory: resolve(".cinegen-ai", "jobs"),
   archiveRoot: config.assetRoot,
+  defaults: config.aiDefaults,
 });
 const app = createApp({
-  store,
-  runner,
+  store: runtime.jobStore,
+  runner: runtime.runner,
   models: { text: config.aiDefaults.text.model, image: config.aiDefaults.image.model },
   archiveRoot: config.assetRoot,
   distPath: resolve("dist"),
