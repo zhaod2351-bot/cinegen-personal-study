@@ -69,4 +69,28 @@ describe("WindowsDpapiProtector", () => {
     await expect(protector.protect(secret)).rejects.not.toThrow(secret);
     expect(commandText(runPowerShell.mock.calls[0][0])).not.toContain(secret);
   });
+
+  it.each([
+    ["empty", ""],
+    ["invalid-character", "not-base64!"],
+    ["noncanonical", "AA"],
+  ])("rejects %s stdout from protect without exposing it", async (_name, stdout) => {
+    const runPowerShell = vi.fn(async (_invocation: PowerShellInvocation) => ({ exitCode: 0, stdout, stderr: "" }));
+    const protector = new WindowsDpapiProtector({ platform: "win32", runPowerShell });
+
+    await expect(protector.protect("sk-secret")).rejects.toThrow("Windows DPAPI protect failed");
+    if (stdout) await expect(protector.protect("sk-secret")).rejects.not.toThrow(stdout);
+  });
+
+  it.each([
+    ["empty", ""],
+    ["invalid-character", "not-base64!"],
+    ["noncanonical", "AA"],
+  ])("rejects %s stdout from unprotect without exposing it", async (_name, stdout) => {
+    const runPowerShell = vi.fn(async (_invocation: PowerShellInvocation) => ({ exitCode: 0, stdout, stderr: "" }));
+    const protector = new WindowsDpapiProtector({ platform: "win32", runPowerShell });
+
+    await expect(protector.unprotect("protected-value")).rejects.toThrow("Windows DPAPI unprotect failed");
+    if (stdout) await expect(protector.unprotect("protected-value")).rejects.not.toThrow(stdout);
+  });
 });

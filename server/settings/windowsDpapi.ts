@@ -20,6 +20,7 @@ type PowerShellResult = {
 type PowerShellRunner = (invocation: PowerShellInvocation) => Promise<PowerShellResult>;
 
 const STDERR_LIMIT = 512;
+const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 const protectScript = [
   "$ErrorActionPreference = 'Stop'",
@@ -38,6 +39,12 @@ const unprotectScript = [
 
 function encodedCommand(script: string): string {
   return Buffer.from(script, "utf16le").toString("base64");
+}
+
+function decodeCanonicalBase64(value: string): Buffer | undefined {
+  if (!value || !BASE64_PATTERN.test(value)) return undefined;
+  const decoded = Buffer.from(value, "base64");
+  return decoded.toString("base64") === value ? decoded : undefined;
 }
 
 function runPowerShell(invocation: PowerShellInvocation): Promise<PowerShellResult> {
@@ -74,15 +81,14 @@ export class WindowsDpapiProtector implements SecretProtector {
   }
 
   async protect(value: string): Promise<string> {
-    return this.execute("protect", protectScript, value);
+    return (await this.execute("protect", protectScript, value)).toString("base64");
   }
 
   async unprotect(value: string): Promise<string> {
-    const output = await this.execute("unprotect", unprotectScript, value);
-    return Buffer.from(output, "base64").toString("utf8");
+    return (await this.execute("unprotect", unprotectScript, value)).toString("utf8");
   }
 
-  private async execute(operation: "protect" | "unprotect", script: string, stdin: string): Promise<string> {
+  private async execute(operation: "protect" | "unprotect", script: string, stdin: string): Promise<Buffer> {
     if (this.platform !== "win32") throw new Error("DPAPI is only available on Windows");
 
     let result: PowerShellResult;
@@ -96,6 +102,8 @@ export class WindowsDpapiProtector implements SecretProtector {
       throw failure(operation, "", stdin);
     }
     if (result.exitCode !== 0) throw failure(operation, result.stderr, stdin);
-    return result.stdout.trim();
+    const output = decodeCanonicalBase64(result.stdout);
+    if (!output) throw failure(operation, "", stdin);
+    return output;
   }
 }
