@@ -38,6 +38,59 @@
         backdrop-filter: blur(12px);
         border: 1px solid rgba(255, 255, 255, 0.08);
       }
+
+      /* Personal study themes. The light themes override the original
+         industrial dark palette without changing project data or AI logic. */
+      html[data-theme='paper'] body {
+        background: #f5f1e9;
+        color: #29231f;
+      }
+      html[data-theme='paper'] .bg-black,
+      html[data-theme='paper'] .bg-\[\#050505\],
+      html[data-theme='paper'] .bg-\[\#080808\],
+      html[data-theme='paper'] .bg-\[\#0A0A0A\],
+      html[data-theme='paper'] .bg-\[\#0F0F0F\],
+      html[data-theme='paper'] .bg-\[\#111\],
+      html[data-theme='paper'] .bg-\[\#121212\],
+      html[data-theme='paper'] .bg-\[\#141414\],
+      html[data-theme='paper'] .bg-\[\#151515\],
+      html[data-theme='paper'] .bg-\[\#1A1A1A\] { background-color: #fffdf8 !important; }
+      html[data-theme='paper'] .bg-zinc-900,
+      html[data-theme='paper'] .bg-zinc-950 { background-color: #f2ece2 !important; }
+      html[data-theme='paper'] .border-zinc-800,
+      html[data-theme='paper'] .border-zinc-900 { border-color: #ded3c4 !important; }
+      html[data-theme='paper'] .text-white,
+      html[data-theme='paper'] .text-gray-100 { color: #29231f !important; }
+      html[data-theme='paper'] .text-zinc-100,
+      html[data-theme='paper'] .text-zinc-200,
+      html[data-theme='paper'] .text-zinc-300,
+      html[data-theme='paper'] .text-zinc-400,
+      html[data-theme='paper'] .text-zinc-500 { color: #70645a !important; }
+      html[data-theme='paper'] .glass-panel { background: rgba(255, 253, 248, .88); border-color: #ded3c4; }
+
+      html[data-theme='mist'] body { background: #edf1f5; color: #1f2933; }
+      html[data-theme='mist'] .bg-black,
+      html[data-theme='mist'] .bg-\[\#050505\],
+      html[data-theme='mist'] .bg-\[\#080808\],
+      html[data-theme='mist'] .bg-\[\#0A0A0A\],
+      html[data-theme='mist'] .bg-\[\#0F0F0F\],
+      html[data-theme='mist'] .bg-\[\#111\],
+      html[data-theme='mist'] .bg-\[\#121212\],
+      html[data-theme='mist'] .bg-\[\#141414\],
+      html[data-theme='mist'] .bg-\[\#151515\],
+      html[data-theme='mist'] .bg-\[\#1A1A1A\] { background-color: #f8fafc !important; }
+      html[data-theme='mist'] .bg-zinc-900,
+      html[data-theme='mist'] .bg-zinc-950 { background-color: #e6edf3 !important; }
+      html[data-theme='mist'] .border-zinc-800,
+      html[data-theme='mist'] .border-zinc-900 { border-color: #cbd5df !important; }
+      html[data-theme='mist'] .text-white,
+      html[data-theme='mist'] .text-gray-100 { color: #1f2933 !important; }
+      html[data-theme='mist'] .text-zinc-100,
+      html[data-theme='mist'] .text-zinc-200,
+      html[data-theme='mist'] .text-zinc-300,
+      html[data-theme='mist'] .text-zinc-400,
+      html[data-theme='mist'] .text-zinc-500 { color: #637381 !important; }
+      html[data-theme='mist'] .glass-panel { background: rgba(248, 250, 252, .88); border-color: #cbd5df; }
     </style>
   <script type="importmap">
 {
