@@ -8,7 +8,7 @@ import StageExport from './components/StageExport';
 import Dashboard from './components/Dashboard';
 import { ProjectState } from './types';
 import { Key, Save, CheckCircle, ArrowRight, ShieldCheck, Palette } from 'lucide-react';
-import { saveProjectToDB } from './services/storageService';
+import { getProjectById, saveProjectToDB, subscribeToProjectSync } from './services/storageService';
 import { setGlobalApiKey } from './services/geminiService';
 
 const HomeLinks = () => (
@@ -100,6 +100,15 @@ function App() {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem('cinegen_theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    return subscribeToProjectSync(async (event) => {
+      if (!project || event.projectId !== project.id) return;
+      if (event.type === 'deleted') { setProject(null); return; }
+      const latest = await getProjectById(project.id);
+      if (latest) setProject(latest);
+    });
+  }, [project?.id]);
 
   const handleSaveKey = () => {
     if (!inputKey.trim()) return;
