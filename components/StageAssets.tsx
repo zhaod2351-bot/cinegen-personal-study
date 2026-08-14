@@ -1,5 +1,5 @@
-import React, { ChangeEvent, useMemo, useRef, useState } from 'react';
-import { Box, Grid2X2, ImageUp, List, MapPin, Pencil, Search, User, Users } from 'lucide-react';
+import React, { ChangeEvent, useRef, useState } from 'react';
+import { Box, Grid2X2, ImageUp, List, MapPin, MoreVertical, Pencil, Plus, Search, Sparkles, User } from 'lucide-react';
 import { Character, ProjectState, Scene } from '../types';
 
 type AssetKind = 'character' | 'scene';
@@ -8,43 +8,107 @@ interface Props { project: ProjectState; updateProject: (updates: Partial<Projec
 const StageAssets: React.FC<Props> = ({ project, updateProject, onOpenDirector }) => {
   const [kind, setKind] = useState<AssetKind>('character');
   const [query, setQuery] = useState('');
-  const [scope, setScope] = useState<'episode' | 'all'>('episode');
-  const [view, setView] = useState<'list' | 'grid'>('list');
-  const [selectedId, setSelectedId] = useState<string>(() => project.scriptData?.characters[0]?.id || '');
+  const [selectedId, setSelectedId] = useState(() => project.scriptData?.characters[0]?.id || '');
+  const [view, setView] = useState<'grid' | 'list'>('list');
+  const [tab, setTab] = useState<'overview' | 'shots'>('overview');
   const [editing, setEditing] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  if (!project.scriptData) return <div className="h-full grid place-items-center text-zinc-500">请先完成剧本分析或导入式剧本。</div>;
+  const fileRef = useRef<HTMLInputElement>(null);
   const data = project.scriptData;
-  const items = (kind === 'character' ? data.characters : data.scenes).filter(item => (kind === 'character' ? (item as Character).name : (item as Scene).location).includes(query));
-  const selected = (kind === 'character' ? data.characters : data.scenes).find(item => item.id === selectedId) || items[0];
-  const linked = selected ? project.shots.filter(shot => kind === 'character' ? shot.characters.includes(selected.id) : shot.sceneId === selected.id) : [];
-  const name = selected ? kind === 'character' ? (selected as Character).name : (selected as Scene).location : '';
+
+  if (!data) return <div className="h-full grid place-items-center bg-[#fffaf3] text-[#7b6e61]">请先完成剧本分析或导入式剧本。</div>;
+
+  const allItems = kind === 'character' ? data.characters : data.scenes;
+  const items = allItems.filter((item) => (kind === 'character' ? (item as Character).name : (item as Scene).location).includes(query.trim()));
+  const selected = allItems.find((item) => item.id === selectedId) || items[0];
+  const isCharacter = kind === 'character';
+  const name = selected ? (isCharacter ? (selected as Character).name : (selected as Scene).location) : '';
+  const note = selected ? (isCharacter ? (selected as Character).personality : (selected as Scene).atmosphere) : '';
+  const visualPrompt = selected?.visualPrompt || '尚未填写视觉参考描述。';
+  const linked = selected ? project.shots.filter((shot) => isCharacter ? shot.characters.includes(selected.id) : shot.sceneId === selected.id) : [];
   const image = selected?.referenceImage;
-  const status = image ? '已完成' : '待补充参考图';
+  const status = image ? '已完成' : '待补充';
+  const typeName = isCharacter ? '角色' : '场景';
+  const tags = isCharacter
+    ? [(selected as Character)?.gender, (selected as Character)?.age, ...note.split(/[，、。；\s]+/).filter(Boolean).slice(0, 3)]
+    : [(selected as Scene)?.time, ...note.split(/[，、。；\s]+/).filter(Boolean).slice(0, 4)];
+
   const save = (changes: Partial<Character & Scene>) => {
-    const scriptData = { ...data, characters: data.characters.map(item => kind === 'character' && item.id === selected?.id ? { ...item, ...changes } : item), scenes: data.scenes.map(item => kind === 'scene' && item.id === selected?.id ? { ...item, ...changes } : item) };
-    updateProject({ scriptData });
+    updateProject({ scriptData: {
+      ...data,
+      characters: data.characters.map((item) => isCharacter && item.id === selected?.id ? { ...item, ...changes } : item),
+      scenes: data.scenes.map((item) => !isCharacter && item.id === selected?.id ? { ...item, ...changes } : item),
+    }});
   };
   const onUpload = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]; if (!file) return;
-    const reader = new FileReader(); reader.onload = () => save({ referenceImage: String(reader.result) }); reader.readAsDataURL(file);
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => save({ referenceImage: String(reader.result) });
+    reader.readAsDataURL(file);
   };
-  const updateText = (field: 'visualPrompt' | 'personality' | 'atmosphere', value: string) => save({ [field]: value });
-  const typeLabel = kind === 'character' ? '角色' : '场景';
-  return <div className="h-full min-h-0 flex bg-[#121212] text-zinc-200">
-    <aside className="w-[340px] shrink-0 border-r border-zinc-800 bg-[#151515] flex flex-col">
-      <div className="p-5 border-b border-zinc-800"><div className="flex rounded-lg overflow-hidden border border-zinc-700">
-        <button onClick={() => { setKind('character'); setSelectedId(data.characters[0]?.id || ''); }} className={`flex-1 py-2 text-sm transition-colors ${kind==='character'?'bg-orange-100 text-orange-900 border border-orange-300':'text-zinc-500 hover:bg-orange-50'}`}>角色</button>
-        <button onClick={() => { setKind('scene'); setSelectedId(data.scenes[0]?.id || ''); }} className={`flex-1 py-2 text-sm transition-colors ${kind==='scene'?'bg-orange-100 text-orange-900 border border-orange-300':'text-zinc-500 hover:bg-orange-50'}`}>场景</button>
-        <button disabled className="flex-1 py-2 text-sm text-zinc-700">道具（即将加入）</button>
-      </div><label className="mt-4 flex gap-2 items-center border border-zinc-700 rounded-lg px-3 py-2 text-zinc-400"><Search className="w-4 h-4"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="搜索素材..." className="w-full bg-transparent outline-none text-sm"/></label></div>
-      <div className="px-5 py-3 text-xs text-zinc-500 flex justify-between items-center"><span>{typeLabel}素材</span><span>{items.length} 个</span></div>
-      <div className="px-5 pb-3 flex gap-2"><button onClick={()=>setScope('episode')} className={`px-2 py-1 rounded border ${scope==='episode'?'border-orange-300 bg-orange-50 text-orange-800':'border-zinc-700'}`}>本集（{items.length}）</button><button onClick={()=>setScope('all')} className={`px-2 py-1 rounded border ${scope==='all'?'border-orange-300 bg-orange-50 text-orange-800':'border-zinc-700'}`}>全部（{items.length}）</button><span className="flex-1"/><button title="网格视图" onClick={()=>setView('grid')} className="p-1"><Grid2X2 className="w-4 h-4"/></button><button title="列表视图" onClick={()=>setView('list')} className="p-1"><List className="w-4 h-4"/></button></div>
-      <div className={`overflow-y-auto px-3 pb-4 ${view==='grid'?'grid grid-cols-2 gap-2':'space-y-2'}`}>{items.map(item => { const label=kind==='character'?(item as Character).name:(item as Scene).location; return <button key={item.id} onClick={()=>{setSelectedId(item.id);setEditing(false)}} className={`${view==='grid'?'flex-col':'w-full'} flex gap-3 items-center p-3 rounded-lg border text-left ${selected?.id===item.id?'border-orange-500 bg-orange-500/10':'border-transparent hover:bg-zinc-800'}`}><div className="w-10 h-10 rounded bg-zinc-800 overflow-hidden grid place-items-center">{item.referenceImage?<img src={item.referenceImage} className="w-full h-full object-cover"/>:kind==='character'?<User className="w-4 h-4"/>:<MapPin className="w-4 h-4"/>}</div><span className="flex-1 truncate"><b className="block text-sm">{label}</b><small className="text-zinc-500">{item.referenceImage?'已关联参考图':'待补充'}</small></span><i className="w-2 h-2 rounded-full bg-blue-400"/></button>})}</div>
-    </aside>
-    <main className="min-w-0 flex-1 overflow-y-auto p-8 md:p-10">{selected && <><header className="flex justify-between gap-6 border-b border-zinc-800 pb-6"><div className="flex gap-4"><div className="w-12 h-12 rounded-xl bg-orange-500/15 grid place-items-center text-orange-400">{kind==='character'?<User/>:<MapPin/>}</div><div><h1 className="text-3xl font-bold text-white">{name}</h1><p className="mt-2 text-sm text-zinc-500">类型：{typeLabel}　状态：<span className="text-emerald-400">{status}</span></p></div></div><button onClick={()=>setEditing(!editing)} className="h-10 px-4 border border-zinc-700 rounded-lg hover:bg-zinc-800 flex gap-2 items-center"><Pencil className="w-4 h-4"/>{editing?'完成编辑':'编辑'}</button></header>
-      <section className="grid grid-cols-1 lg:grid-cols-[300px,1fr] gap-8 py-8"><div className="relative aspect-[3/4] rounded-xl bg-zinc-900 overflow-hidden border border-zinc-800 group">{image?<img src={image} className="w-full h-full object-cover"/>:<div className="h-full grid place-items-center text-zinc-600">暂无参考图</div>}<button onClick={()=>inputRef.current?.click()} className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-black/60 grid place-items-center transition-opacity"><span className="px-4 py-2 bg-white text-black rounded-lg flex gap-2"><ImageUp className="w-4 h-4"/>上传 / 替换参考图</span></button><input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onUpload}/></div><div className="space-y-6"><div><h2 className="font-bold text-white mb-3">{typeLabel}备注</h2>{editing?<textarea value={kind==='character'?(selected as Character).personality:(selected as Scene).atmosphere} onChange={e=>updateText(kind==='character'?'personality':'atmosphere',e.target.value)} className="w-full min-h-28 bg-zinc-900 border border-zinc-700 rounded-lg p-3 outline-none"/>:<p className="text-zinc-400 leading-7">{kind==='character'?(selected as Character).personality:(selected as Scene).atmosphere}</p>}</div><div><h2 className="font-bold text-white mb-3">视觉参考描述</h2>{editing?<textarea value={selected.visualPrompt||''} onChange={e=>updateText('visualPrompt',e.target.value)} className="w-full min-h-28 bg-zinc-900 border border-zinc-700 rounded-lg p-3 outline-none"/>:<p className="text-zinc-400 leading-7">{selected.visualPrompt||'尚未填写视觉描述。'}</p>}</div><div className="grid grid-cols-2 gap-4 pt-4 border-t border-zinc-800"><div><p className="text-xs text-zinc-500">关联镜头</p><b className="text-2xl text-white">{linked.length}</b></div><div><p className="text-xs text-zinc-500">创建状态</p><b className="text-sm text-emerald-400">{status}</b></div></div></div></section>
-      <section className="border-t border-zinc-800 pt-7"><h2 className="text-lg font-bold text-white mb-4">关联镜头（{linked.length}）</h2>{linked.length? <div className="grid gap-3">{linked.map((shot,index)=><button key={shot.id} onClick={()=>onOpenDirector?.(shot.id)} className="text-left p-4 rounded-lg border border-zinc-800 hover:border-orange-500 hover:bg-zinc-900"><b className="text-orange-400 mr-3">镜头 {project.shots.indexOf(shot)+1}</b><span>{shot.actionSummary}</span><small className="block mt-2 text-zinc-500">{shot.shotSize||'未设定景别'} · {shot.cameraMovement}</small></button>)}</div>:<p className="text-zinc-500 py-4">该{typeLabel}尚未被导演工作台中的镜头使用。</p>}</section></>}</main>
-  </div>;
+  const switchKind = (next: AssetKind) => {
+    setKind(next); setTab('overview'); setEditing(false);
+    setSelectedId((next === 'character' ? data.characters[0]?.id : data.scenes[0]?.id) || '');
+  };
+
+  return <section className="asset-studio">
+    <header className="asset-category-bar">
+      <div className="asset-kind-tabs">
+        <button className={isCharacter ? 'active' : ''} onClick={() => switchKind('character')}><User size={18}/>角色</button>
+        <button className={!isCharacter ? 'active' : ''} onClick={() => switchKind('scene')}><MapPin size={18}/>场景</button>
+        <button disabled><Box size={18}/>道具</button>
+      </div>
+      <div className="asset-style">艺术风格：<b>{data.genre || '个人项目风格'}</b></div>
+    </header>
+
+    <div className="asset-workbench">
+      <aside className="asset-library">
+        <div className="asset-search-row">
+          <label><Search size={20}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索素材..."/></label>
+          <button className="asset-add" title="新建资产"><Plus size={23}/></button>
+        </div>
+        <div className="asset-library-tools">
+          <div><button className="selected">本集（{items.length}）</button><button>全部（{allItems.length}）</button></div>
+          <div><button title="网格视图" onClick={() => setView('grid')} className={view === 'grid' ? 'selected' : ''}><Grid2X2 size={18}/></button><button title="列表视图" onClick={() => setView('list')} className={view === 'list' ? 'selected' : ''}><List size={19}/></button><button title="批量处理"><Sparkles size={18}/></button></div>
+        </div>
+        <div className={`asset-list ${view === 'grid' ? 'grid' : ''}`}>{items.map((item) => {
+          const label = isCharacter ? (item as Character).name : (item as Scene).location;
+          const active = selected?.id === item.id;
+          return <button key={item.id} onClick={() => { setSelectedId(item.id); setEditing(false); setTab('overview'); }} className={`asset-item ${active ? 'active' : ''}`}>
+            <span className="asset-thumb">{item.referenceImage ? <img src={item.referenceImage} alt=""/> : isCharacter ? <User size={21}/> : <MapPin size={21}/>}</span>
+            <span className="asset-name"><b>{label}</b><small>{item.referenceImage ? 'LINKED' : '待补充参考图'}</small></span><i/>
+          </button>;
+        })}</div>
+      </aside>
+
+      <main className="asset-detail">{selected && <>
+        <header className="asset-detail-header">
+          <div className="asset-title"><span>{isCharacter ? <User size={27}/> : <MapPin size={27}/>}</span><div><div className="asset-title-line"><h1>{name}</h1><em>{status}</em></div><p>类型：<b>{typeName}</b><span>状态：</span><strong>已关联剧集</strong><code>#{selected.id.slice(0, 8)}</code></p></div></div>
+          <div className="asset-actions"><button onClick={() => setEditing(!editing)}><Pencil size={20}/>{editing ? '完成编辑' : '编辑'}</button><button className="primary"><Sparkles size={19}/>重新生成</button><button className="icon"><MoreVertical size={21}/></button></div>
+        </header>
+        <div className="asset-detail-body">
+          <div className="asset-reference">
+            <div className="asset-image-box">{image ? <img src={image} alt={`${name}参考图`}/> : <span>暂无参考图</span>}<button onClick={() => fileRef.current?.click()}><ImageUp size={19}/>上传 / 替换</button><input ref={fileRef} type="file" accept="image/*" onChange={onUpload}/></div>
+            <h3><Sparkles size={16}/>视觉参考</h3>
+            {editing ? <textarea value={visualPrompt} onChange={(event) => save({ visualPrompt: event.target.value })}/> : <div className="visual-copy">{visualPrompt}</div>}
+            <p>此描述会作为后续镜头提示词的视觉依据。上传的本地参考图会保留在当前个人项目中。</p>
+            <p>当前风格：<b>{data.genre || '个人项目风格'}</b></p>
+          </div>
+          <section className="asset-info">
+            <div className="asset-info-tabs"><button onClick={() => setTab('overview')} className={tab === 'overview' ? 'active' : ''}>概览</button><button onClick={() => setTab('shots')} className={tab === 'shots' ? 'active' : ''}>相关镜头 <b>{linked.length}</b></button></div>
+            {tab === 'overview' ? <>
+              <div className="asset-note"><h2>{typeName}备注</h2>{editing ? <textarea value={note} onChange={(event) => save(isCharacter ? { personality: event.target.value } : { atmosphere: event.target.value })}/> : <p>{note || '尚未填写备注。'}</p>}</div>
+              <div className="asset-divider"/>
+              <div className="asset-metadata">
+                <div><h3>基础信息</h3>{isCharacter ? <><p><label>性别</label><span>{(selected as Character).gender || '未设置'}</span></p><p><label>年龄</label><span>{(selected as Character).age || '未设置'}</span></p></> : <><p><label>时间</label><span>{(selected as Scene).time || '未设置'}</span></p><p><label>地点</label><span>{name}</span></p></>}<p className="tag-row"><label>标签</label><span>{tags.filter(Boolean).map((tag, index) => <i key={index}>#{tag}</i>)}</span></p>{isCharacter && <p className="tag-row"><label>语音标签</label><span><i>#待配置</i><i>#待录音</i></span></p>}</div>
+                <div><h3>统计数据</h3><p><label>关联镜头</label><span>{linked.length}</span></p><p><label>创建于</label><span>当前项目</span></p><p><label>风格预设</label><span className="preset">{data.genre || '个人项目风格'}</span></p></div>
+              </div>
+            </> : <div className="linked-shots">{linked.length ? linked.map((shot, index) => <button key={shot.id} onClick={() => onOpenDirector?.(shot.id)}><b>镜头 {String(index + 1).padStart(2, '0')}</b><span>{shot.actionSummary}</span><small>{shot.shotSize || '未设置景别'}</small></button>) : <p>这个资产暂未关联镜头。</p>}</div>}
+          </section>
+        </div>
+      </>}</main>
+    </div>
+  </section>;
 };
+
 export default StageAssets;
