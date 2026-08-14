@@ -2,13 +2,20 @@ import OpenAI from "openai";
 import { z } from "zod";
 import { buildDirectorPlanPrompt } from "./prompts/directorPlanPrompt";
 import { buildStoryboardPrompt } from "./prompts/storyboardPrompt";
-import type { RuntimeAiSettings } from "./settings/types";
+import type { RuntimeAiSettings, RuntimeProviderSettings } from "./settings/types";
 import type { DirectorPlanInput, StoryboardInput } from "./types";
 import { DirectorPlanSchema } from "./validation/directorPlan";
 
 export interface AiGateway {
   createDirectorPlan(input: DirectorPlanInput): Promise<unknown>;
   generateStoryboard(input: StoryboardInput): Promise<{ image: Buffer; model: string }>;
+}
+
+export type AiConnectionSettings = Omit<RuntimeProviderSettings, "apiKey"> & { apiKey: string };
+
+export interface AiConnectionTester {
+  testText(settings: AiConnectionSettings): Promise<void>;
+  testImage(settings: AiConnectionSettings): Promise<void>;
 }
 
 export type OpenAIClientFactory = (options: { apiKey: string; baseURL: string }) => OpenAI;
@@ -20,11 +27,38 @@ function sanitizedProviderError(kind: "Text" | "Image", error: unknown): Error &
   return sanitized;
 }
 
-export class OpenAIGateway implements AiGateway {
+export class OpenAIGateway implements AiGateway, AiConnectionTester {
   constructor(
     private readonly getRuntimeSettings: () => Promise<RuntimeAiSettings>,
     private readonly createClient: OpenAIClientFactory = (options) => new OpenAI(options),
   ) {}
+
+  async testText(settings: AiConnectionSettings): Promise<void> {
+    try {
+      const client = this.createClient({ apiKey: settings.apiKey, baseURL: settings.baseUrl });
+      await client.chat.completions.create({
+        model: settings.model,
+        stream: false,
+        messages: [{ role: "user", content: "Reply with OK." }],
+      });
+    } catch (error) {
+      throw sanitizedProviderError("Text", error);
+    }
+  }
+
+  async testImage(settings: AiConnectionSettings): Promise<void> {
+    try {
+      const client = this.createClient({ apiKey: settings.apiKey, baseURL: settings.baseUrl });
+      await client.images.generate({
+        model: settings.model,
+        prompt: "A plain white square.",
+        n: 1,
+        size: "1024x1024",
+      });
+    } catch (error) {
+      throw sanitizedProviderError("Image", error);
+    }
+  }
 
   async createDirectorPlan(input: DirectorPlanInput): Promise<unknown> {
     const settings = await this.getRuntimeSettings();

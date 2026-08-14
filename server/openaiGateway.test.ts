@@ -54,6 +54,113 @@ const storyboardInput: StoryboardInput = {
 };
 
 describe("OpenAIGateway", () => {
+  it("tests a supplied text provider with a minimal non-creative request", async () => {
+    const factoryInputs: Array<{ apiKey: string; baseURL: string }> = [];
+    const completionInputs: unknown[] = [];
+    const gateway = new OpenAIGateway(async () => settings, (input) => {
+      factoryInputs.push(input);
+      return {
+        chat: {
+          completions: {
+            create: async (request: unknown) => {
+              completionInputs.push(request);
+              return { choices: [{ message: { content: "OK" } }] };
+            },
+          },
+        },
+      } as unknown as OpenAI;
+    });
+
+    await expect(gateway.testText({
+      baseUrl: "https://temporary-text.example/v1",
+      model: "temporary-text-model",
+      apiKey: "temporary-text-key",
+    })).resolves.toBeUndefined();
+
+    expect(factoryInputs).toEqual([{
+      apiKey: "temporary-text-key",
+      baseURL: "https://temporary-text.example/v1",
+    }]);
+    expect(completionInputs).toEqual([{
+      model: "temporary-text-model",
+      stream: false,
+      messages: [{ role: "user", content: "Reply with OK." }],
+    }]);
+  });
+
+  it("tests a supplied image provider with one minimal image request", async () => {
+    const factoryInputs: Array<{ apiKey: string; baseURL: string }> = [];
+    const generationInputs: unknown[] = [];
+    const gateway = new OpenAIGateway(async () => settings, (input) => {
+      factoryInputs.push(input);
+      return {
+        images: {
+          generate: async (request: unknown) => {
+            generationInputs.push(request);
+            return { data: [{ b64_json: Buffer.from("test-image").toString("base64") }] };
+          },
+        },
+      } as unknown as OpenAI;
+    });
+
+    await expect(gateway.testImage({
+      baseUrl: "https://temporary-image.example/v1",
+      model: "temporary-image-model",
+      apiKey: "temporary-image-key",
+    })).resolves.toBeUndefined();
+
+    expect(factoryInputs).toEqual([{
+      apiKey: "temporary-image-key",
+      baseURL: "https://temporary-image.example/v1",
+    }]);
+    expect(generationInputs).toEqual([{
+      model: "temporary-image-model",
+      prompt: "A plain white square.",
+      n: 1,
+      size: "1024x1024",
+    }]);
+  });
+
+  it.each([
+    ["text", "Text provider request failed", (gateway: OpenAIGateway) => gateway.testText({
+      baseUrl: settings.text.baseUrl,
+      model: settings.text.model,
+      apiKey: "text-key",
+    })],
+    ["image", "Image provider request failed", (gateway: OpenAIGateway) => gateway.testImage({
+      baseUrl: settings.image.baseUrl,
+      model: settings.image.model,
+      apiKey: "image-key",
+    })],
+  ])("sanitizes %s connection-test failures", async (_kind, safeMessage, invoke) => {
+    const gateway = new OpenAIGateway(async () => settings, () => ({
+      chat: {
+        completions: {
+          create: async () => {
+            throw Object.assign(new Error("key=text-key prompt=PRIVATE_PROMPT"), { status: 401 });
+          },
+        },
+      },
+      images: {
+        generate: async () => {
+          throw Object.assign(new Error("key=image-key prompt=PRIVATE_PROMPT"), { status: 401 });
+        },
+      },
+    }) as unknown as OpenAI);
+
+    let failure: unknown;
+    try {
+      await invoke(gateway);
+    } catch (error) {
+      failure = error;
+    }
+
+    expect(failure).toMatchObject({ message: safeMessage, status: 401 });
+    expect(String(failure)).not.toContain("PRIVATE_PROMPT");
+    expect(String(failure)).not.toContain("text-key");
+    expect(String(failure)).not.toContain("image-key");
+  });
+
   it("routes a director plan through one text-provider snapshot", async () => {
     const factoryInputs: Array<{ apiKey: string; baseURL: string }> = [];
     const completionInputs: unknown[] = [];

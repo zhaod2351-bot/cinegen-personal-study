@@ -1,9 +1,11 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
-import { z, ZodError } from "zod";
+import { z, ZodError, type ZodType } from "zod";
 import type { JobRunner } from "./jobs/jobRunner";
 import type { JobStore } from "./jobs/jobStore";
+import type { AiConnectionSettings, AiConnectionTester } from "./openaiGateway";
+import type { AiSettingsStore } from "./settings/aiSettingsStore";
 
 const assetType = z.enum(["character", "scene", "prop"]);
 const assetReference = z.object({ type: assetType, id: z.string().min(1) });
@@ -55,10 +57,30 @@ const storyboardInput = z.object({
   aspectRatio: z.string().min(1),
   version: z.number().int().positive(),
 });
+const providerSettingsInput = z.strictObject({
+  baseUrl: z.string().trim().min(1).refine((value) => {
+    try {
+      const url = new URL(value);
+      return (url.protocol === "http:" || url.protocol === "https:")
+        && !url.username
+        && !url.password;
+    } catch {
+      return false;
+    }
+  }),
+  model: z.string().trim().min(1),
+  apiKey: z.string().trim().min(1).optional(),
+});
+const aiSettingsUpdateInput = z.strictObject({
+  text: providerSettingsInput.optional(),
+  image: providerSettingsInput.optional(),
+});
 
 export interface AppDependencies {
   store: JobStore;
   runner: JobRunner;
+  settingsStore: AiSettingsStore;
+  connectionTester: AiConnectionTester;
   models: { text: string; image: string };
   archiveRoot?: string;
   distPath?: string;
@@ -72,6 +94,32 @@ export function createApp(deps: AppDependencies): Express {
   app.get("/api/health", (_request, response) => {
     response.json({ ok: true, models: deps.models, archiveRoot: deps.archiveRoot });
   });
+
+  app.get("/api/settings/ai", settingsRoute(async (_request, response) => {
+    response.json(await deps.settingsStore.getPublicSettings());
+  }));
+
+  app.put("/api/settings/ai", settingsRoute(async (request, response) => {
+    const input = parseSettingsBody(aiSettingsUpdateInput, request.body, response);
+    if (!input) return;
+    response.json(await deps.settingsStore.update(input));
+  }));
+
+  app.delete("/api/settings/ai/text-key", settingsRoute(async (_request, response) => {
+    response.json(await deps.settingsStore.clearKey("text"));
+  }));
+
+  app.delete("/api/settings/ai/image-key", settingsRoute(async (_request, response) => {
+    response.json(await deps.settingsStore.clearKey("image"));
+  }));
+
+  app.post("/api/settings/ai/test-text", settingsRoute(async (request, response) => {
+    await testConnection("text", request.body, response, deps);
+  }));
+
+  app.post("/api/settings/ai/test-image", settingsRoute(async (request, response) => {
+    await testConnection("image", request.body, response, deps);
+  }));
 
   app.post("/api/director-plans", asyncRoute(async (request, response) => {
     const job = await deps.runner.runDirectorPlan(directorPlanInput.parse(request.body));
@@ -128,4 +176,78 @@ function asyncRoute(
   return (request: Request, response: Response, next: NextFunction) => {
     void handler(request, response, next).catch(next);
   };
+}
+
+function settingsRoute(
+  handler: (request: Request, response: Response) => Promise<unknown>,
+) {
+  return asyncRoute(async (request, response) => {
+    try {
+      return await handler(request, response);
+    } catch {
+      return response.status(500).json({
+        code: "AI_SETTINGS_FAILED",
+        error: "AI 设置操作失败",
+      });
+    }
+  });
+}
+
+function parseSettingsBody<T>(schema: ZodType<T>, body: unknown, response: Response): T | undefined {
+  const result = schema.safeParse(body);
+  if (!result.success) {
+    response.status(400).json({ code: "INVALID_AI_SETTINGS", error: "AI 设置输入无效" });
+    return undefined;
+  }
+  return result.data;
+}
+
+async function testConnection(
+  kind: "text" | "image",
+  body: unknown,
+  response: Response,
+  deps: Pick<AppDependencies, "settingsStore" | "connectionTester">,
+): Promise<void> {
+  const input = parseSettingsBody(providerSettingsInput, body, response);
+  if (!input) return;
+
+  const saved = (await deps.settingsStore.getRuntimeSettings())[kind];
+  const apiKey = input.apiKey ?? saved.apiKey;
+  if (!apiKey) {
+    response.status(409).json({
+      code: "AI_KEY_MISSING",
+      error: `尚未配置${kind === "text" ? "文本" : "图片"}服务 API Key`,
+    });
+    return;
+  }
+
+  const settings: AiConnectionSettings = {
+    baseUrl: input.baseUrl,
+    model: input.model,
+    apiKey,
+  };
+  try {
+    if (kind === "text") await deps.connectionTester.testText(settings);
+    else await deps.connectionTester.testImage(settings);
+  } catch (error) {
+    const status = (error as { status?: unknown })?.status;
+    if (status === 401 || status === 403) {
+      response.status(401).json({ code: "AI_AUTH_FAILED", error: "认证失败，请检查 API Key" });
+      return;
+    }
+    if (status === 429) {
+      response.status(429).json({ code: "AI_RATE_LIMITED", error: "服务请求过于频繁，请稍后重试" });
+      return;
+    }
+    response.status(502).json({
+      code: "AI_CONNECTION_FAILED",
+      error: `${kind === "text" ? "文本" : "图片"}服务连接失败，请检查 Base URL 和模型兼容性`,
+    });
+    return;
+  }
+
+  response.json({
+    ok: true,
+    message: `${kind === "text" ? "文本" : "图片"}服务连接成功`,
+  });
 }

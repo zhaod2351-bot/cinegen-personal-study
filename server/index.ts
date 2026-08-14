@@ -18,6 +18,8 @@ const runtime = createAiRuntime({
 const app = createApp({
   store: runtime.jobStore,
   runner: runtime.runner,
+  settingsStore: runtime.settingsStore,
+  connectionTester: runtime.gateway,
   models: { text: config.aiDefaults.text.model, image: config.aiDefaults.image.model },
   archiveRoot: config.assetRoot,
   distPath: resolve("dist"),

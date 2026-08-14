@@ -8,10 +8,49 @@ import { OpenAIGateway, type AiGateway } from "./openaiGateway";
 import { createApp } from "./app";
 import { JobRunner } from "./jobs/jobRunner";
 import { JobStore } from "./jobs/jobStore";
-import type { RuntimeAiSettings } from "./settings/types";
+import { AiSettingsStore } from "./settings/aiSettingsStore";
+import type { RuntimeAiSettings, RuntimeProviderSettings } from "./settings/types";
 
-async function fixtureApp() {
-  const root = await mkdtemp(join(tmpdir(), "cinegen-api-"));
+const textKey = "sk-text-must-never-leak-123456";
+const imageKey = "sk-image-must-never-leak-abcdef";
+
+class ReversibleProtector {
+  async protect(value: string): Promise<string> {
+    return Buffer.from(value, "utf8").toString("base64url");
+  }
+
+  async unprotect(value: string): Promise<string> {
+    return Buffer.from(value, "base64url").toString("utf8");
+  }
+}
+
+class RecordingConnectionTester {
+  readonly textSettings: RuntimeProviderSettings[] = [];
+  readonly imageSettings: RuntimeProviderSettings[] = [];
+
+  constructor(private readonly failure?: Error & { status?: number }) {}
+
+  async testText(settings: RuntimeProviderSettings): Promise<void> {
+    this.textSettings.push(settings);
+    if (this.failure) throw this.failure;
+  }
+
+  async testImage(settings: RuntimeProviderSettings): Promise<void> {
+    this.imageSettings.push(settings);
+    if (this.failure) throw this.failure;
+  }
+}
+
+const settingsDefaults: RuntimeAiSettings = {
+  text: { baseUrl: "https://text.example/v1", model: "text-model", apiKey: textKey },
+  image: { baseUrl: "https://image.example/v1", model: "image-model", apiKey: imageKey },
+};
+
+async function settingsApiFixture(options: {
+  failure?: Error & { status?: number };
+  defaults?: RuntimeAiSettings;
+} = {}) {
+  const root = await mkdtemp(join(tmpdir(), "cinegen-settings-api-"));
   const store = new JobStore(join(root, "jobs"));
   const gateway: AiGateway = {
     async createDirectorPlan() {
@@ -22,11 +61,24 @@ async function fixtureApp() {
     },
   };
   const runner = new JobRunner({ store, gateway, archiveRoot: join(root, "archive"), retryDelayMs: 0 });
-  return createApp({
+  const settingsStore = new AiSettingsStore({
+    filePath: join(root, "settings", "ai-settings.json"),
+    protector: new ReversibleProtector(),
+    defaults: options.defaults ?? settingsDefaults,
+  });
+  const connectionTester = new RecordingConnectionTester(options.failure);
+  const app = createApp({
     store,
     runner,
+    settingsStore,
+    connectionTester,
     models: { text: "gpt-test", image: "runtime-image-model" },
   });
+  return { app, connectionTester, settingsStore };
+}
+
+async function fixtureApp() {
+  return (await settingsApiFixture()).app;
 }
 
 const storyboard = {
@@ -56,8 +108,6 @@ const storyboard = {
   version: 1,
 };
 
-const textKey = "sk-text-must-never-leak-123456";
-const imageKey = "sk-image-must-never-leak-abcdef";
 const lockedScript = "LOCKED_SCRIPT_MUST_NOT_APPEAR_IN_ERROR";
 const imagePrompt = "IMAGE_PROMPT_MUST_NOT_APPEAR_IN_ERROR";
 
@@ -96,11 +146,164 @@ async function failingProviderFixture() {
     },
   }) as unknown as OpenAI);
   const runner = new JobRunner({ store, gateway, archiveRoot: join(root, "archive"), retryDelayMs: 0 });
-  const app = createApp({ store, runner, models: { text: "text-model", image: "image-model" } });
+  const settingsStore = new AiSettingsStore({
+    filePath: join(root, "settings", "ai-settings.json"),
+    protector: new ReversibleProtector(),
+    defaults: settings,
+  });
+  const app = createApp({
+    store,
+    runner,
+    settingsStore,
+    connectionTester: new RecordingConnectionTester(),
+    models: { text: "text-model", image: "image-model" },
+  });
   return { app, root, runner };
 }
 
 describe("local AI API", () => {
+  it("returns only the redacted AI settings DTO", async () => {
+    const { app } = await settingsApiFixture();
+
+    const response = await request(app).get("/api/settings/ai").expect(200);
+
+    expect(response.body).toEqual({
+      text: { baseUrl: "https://text.example/v1", model: "text-model", hasKey: true, keyMask: "sk-****3456" },
+      image: { baseUrl: "https://image.example/v1", model: "image-model", hasKey: true, keyMask: "sk-****cdef" },
+    });
+    const serialized = JSON.stringify(response.body);
+    expect(serialized).not.toContain(textKey);
+    expect(serialized).not.toContain(imageKey);
+    expect(serialized).not.toContain(Buffer.from(textKey).toString("base64url"));
+    expect(serialized).not.toContain("protectedKey");
+  });
+
+  it("updates providers while preserving an omitted key and returns the redacted DTO", async () => {
+    const { app, settingsStore } = await settingsApiFixture();
+
+    const response = await request(app).put("/api/settings/ai").send({
+      text: { baseUrl: "https://new-text.example/v2", model: "  text-next  " },
+      image: { baseUrl: "https://new-image.example/v2", model: "image-next", apiKey: "  im-new-87654321  " },
+    }).expect(200);
+
+    expect(response.body).toEqual({
+      text: { baseUrl: "https://new-text.example/v2", model: "text-next", hasKey: true, keyMask: "sk-****3456" },
+      image: { baseUrl: "https://new-image.example/v2", model: "image-next", hasKey: true, keyMask: "im-****4321" },
+    });
+    expect(await settingsStore.getRuntimeSettings()).toEqual({
+      text: { baseUrl: "https://new-text.example/v2", model: "text-next", apiKey: textKey },
+      image: { baseUrl: "https://new-image.example/v2", model: "image-next", apiKey: "im-new-87654321" },
+    });
+    expect(JSON.stringify(response.body)).not.toContain("im-new-87654321");
+    expect(JSON.stringify(response.body)).not.toContain("protectedKey");
+  });
+
+  it("rejects an empty key without clearing the saved key", async () => {
+    const { app, settingsStore } = await settingsApiFixture();
+
+    const response = await request(app).put("/api/settings/ai").send({
+      text: { baseUrl: "https://text.example/v1", model: "text-model", apiKey: "   " },
+    }).expect(400);
+
+    expect(response.body).toEqual({ code: "INVALID_AI_SETTINGS", error: "AI 设置输入无效" });
+    expect((await settingsStore.getRuntimeSettings()).text.apiKey).toBe(textKey);
+  });
+
+  it("clears only the requested key and returns the redacted DTO", async () => {
+    const { app } = await settingsApiFixture();
+
+    const response = await request(app).delete("/api/settings/ai/text-key").expect(200);
+
+    expect(response.body).toEqual({
+      text: { baseUrl: "https://text.example/v1", model: "text-model", hasKey: false, keyMask: null },
+      image: { baseUrl: "https://image.example/v1", model: "image-model", hasKey: true, keyMask: "sk-****cdef" },
+    });
+    const serialized = JSON.stringify(response.body);
+    expect(serialized).not.toContain(textKey);
+    expect(serialized).not.toContain(imageKey);
+    expect(serialized).not.toContain("protectedKey");
+  });
+
+  it("tests text settings with a temporary key without persisting them", async () => {
+    const { app, connectionTester, settingsStore } = await settingsApiFixture();
+
+    const response = await request(app).post("/api/settings/ai/test-text").send({
+      baseUrl: "https://temporary-text.example/v1",
+      model: " temporary-text-model ",
+      apiKey: " temporary-text-key ",
+    }).expect(200);
+
+    expect(response.body).toEqual({ ok: true, message: "文本服务连接成功" });
+    expect(connectionTester.textSettings).toEqual([{
+      baseUrl: "https://temporary-text.example/v1",
+      model: "temporary-text-model",
+      apiKey: "temporary-text-key",
+    }]);
+    expect(await settingsStore.getRuntimeSettings()).toEqual(settingsDefaults);
+    expect(JSON.stringify(response.body)).not.toContain("temporary-text-key");
+  });
+
+  it("tests image settings with the saved key without persisting form fields", async () => {
+    const { app, connectionTester, settingsStore } = await settingsApiFixture();
+
+    const response = await request(app).post("/api/settings/ai/test-image").send({
+      baseUrl: "https://temporary-image.example/v1",
+      model: "temporary-image-model",
+    }).expect(200);
+
+    expect(response.body).toEqual({ ok: true, message: "图片服务连接成功" });
+    expect(connectionTester.imageSettings).toEqual([{
+      baseUrl: "https://temporary-image.example/v1",
+      model: "temporary-image-model",
+      apiKey: imageKey,
+    }]);
+    expect(await settingsStore.getRuntimeSettings()).toEqual(settingsDefaults);
+    expect(JSON.stringify(response.body)).not.toContain(imageKey);
+  });
+
+  it("returns 409 when a connection test has neither a temporary nor saved key", async () => {
+    const { app } = await settingsApiFixture();
+    await request(app).delete("/api/settings/ai/image-key").expect(200);
+
+    const response = await request(app).post("/api/settings/ai/test-image").send({
+      baseUrl: "https://image.example/v1",
+      model: "image-model",
+    }).expect(409);
+
+    expect(response.body).toEqual({ code: "AI_KEY_MISSING", error: "尚未配置图片服务 API Key" });
+  });
+
+  it.each([
+    [401, "AI_AUTH_FAILED", "认证失败，请检查 API Key"],
+    [429, "AI_RATE_LIMITED", "服务请求过于频繁，请稍后重试"],
+    [500, "AI_CONNECTION_FAILED", "文本服务连接失败，请检查 Base URL 和模型兼容性"],
+  ])("maps an upstream %s without exposing provider details", async (upstreamStatus, code, error) => {
+    const leakedMessage = `provider dump key=${textKey} prompt=PRIVATE_CONNECTION_PROMPT`;
+    const failure = Object.assign(new Error(leakedMessage), { status: upstreamStatus });
+    const { app } = await settingsApiFixture({ failure });
+
+    const response = await request(app).post("/api/settings/ai/test-text").send({
+      baseUrl: "https://text.example/v1",
+      model: "text-model",
+    }).expect(upstreamStatus === 500 ? 502 : upstreamStatus);
+
+    expect(response.body).toEqual({ code, error });
+    expect(JSON.stringify(response.body)).not.toContain(textKey);
+    expect(JSON.stringify(response.body)).not.toContain("PRIVATE_CONNECTION_PROMPT");
+  });
+
+  it.each([
+    [{ baseUrl: "ftp://text.example/v1", model: "text-model" }],
+    [{ baseUrl: "https://secret@text.example/v1", model: "text-model" }],
+    [{ baseUrl: "https://text.example/v1", model: "   " }],
+  ])("returns a stable 400 response for invalid connection settings", async (payload) => {
+    const { app } = await settingsApiFixture();
+
+    const response = await request(app).post("/api/settings/ai/test-text").send(payload).expect(400);
+
+    expect(response.body).toEqual({ code: "INVALID_AI_SETTINGS", error: "AI 设置输入无效" });
+  });
+
   it("reports configured models without exposing the key", async () => {
     const response = await request(await fixtureApp()).get("/api/health").expect(200);
     expect(response.body.models).toEqual({ text: "gpt-test", image: "runtime-image-model" });
