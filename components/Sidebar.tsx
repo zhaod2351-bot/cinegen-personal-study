@@ -18,7 +18,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentStage, setStage, onExit, proje
   ];
 
   return (
-    <aside className="w-72 bg-[#050505] border-r border-zinc-800 h-screen fixed left-0 top-0 flex flex-col z-50 select-none">
+    <aside className="w-80 bg-[#050505] border-r border-zinc-800 h-screen fixed left-0 top-0 flex flex-col z-50 select-none">
       {/* Header */}
       <div className="p-6 border-b border-zinc-900">
         <div className="flex items-center gap-3 mb-6">
