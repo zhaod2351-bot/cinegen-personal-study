@@ -19,7 +19,7 @@ const HomeLinks = () => (
       rel="noreferrer"
       className="hover:text-white transition-colors"
     >
-      Source repository
+      原始开源仓库
     </a>
     <span className="text-zinc-700">|</span>
     <a
@@ -38,16 +38,16 @@ type Theme = 'paper' | 'mist' | 'night';
 const ThemePicker = ({ theme, setTheme }: { theme: Theme; setTheme: (theme: Theme) => void }) => (
   <label className="fixed top-4 left-4 z-[80] flex items-center gap-2 rounded-lg border border-black/10 bg-white/85 px-3 py-2 text-[11px] font-mono text-zinc-700 shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-black/70 dark:text-zinc-300">
     <Palette className="h-3.5 w-3.5" />
-    <span>Theme</span>
+    <span>主题</span>
     <select
-      aria-label="Theme color"
+      aria-label="主题颜色"
       value={theme}
       onChange={(event) => setTheme(event.target.value as Theme)}
       className="cursor-pointer bg-transparent text-[11px] font-bold outline-none"
     >
-      <option value="paper">Paper</option>
-      <option value="mist">Mist</option>
-      <option value="night">Night</option>
+      <option value="paper">暖白</option>
+      <option value="mist">雾蓝</option>
+      <option value="night">夜间</option>
     </select>
   </label>
 );
@@ -222,7 +222,7 @@ function App() {
           className="fixed top-4 right-4 z-50 text-[10px] text-zinc-600 transition-colors uppercase font-mono tracking-widest"
           title={apiKey ? 'Remove locally saved model key' : 'Model can be configured later'}
         >
-          {apiKey ? 'Clear model key' : 'Model optional'}
+          {apiKey ? '清除模型密钥' : '模型可后续配置'}
         </button>
         <Dashboard onOpenProject={handleOpenProject} />
         <HomeLinks />

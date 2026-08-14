@@ -23,12 +23,12 @@ const StageExport: React.FC<Props> = ({ project }) => {
               <h2 className="text-lg font-bold text-white flex items-center gap-3">
                   <Film className="w-5 h-5 text-indigo-500" />
                   成片与导出
-                  <span className="text-xs text-zinc-600 font-mono font-normal uppercase tracking-wider bg-black/30 px-2 py-1 rounded">Rendering & Export</span>
+              <span className="text-xs text-zinc-600 font-mono font-normal tracking-wider bg-black/30 px-2 py-1 rounded">渲染与导出</span>
               </h2>
           </div>
           <div className="flex items-center gap-2">
              <span className="text-[10px] text-zinc-500 font-mono uppercase bg-zinc-900 border border-zinc-800 px-2 py-1 rounded">
-               Status: {progress === 100 ? 'READY' : 'IN PROGRESS'}
+               状态：{progress === 100 ? '已就绪' : '进行中'}
              </span>
           </div>
       </div>
@@ -46,21 +46,21 @@ const StageExport: React.FC<Props> = ({ project }) => {
                <div>
                  <div className="flex items-center gap-3 mb-2">
                     <h3 className="text-2xl md:text-3xl font-bold text-white tracking-tight">{project.scriptData?.title || '未命名项目'}</h3>
-                    <span className="px-2 py-0.5 bg-zinc-900 border border-zinc-700 text-zinc-400 text-[10px] rounded uppercase font-mono tracking-wider">Master Sequence</span>
+                    <span className="px-2 py-0.5 bg-zinc-900 border border-zinc-700 text-zinc-400 text-[10px] rounded font-mono tracking-wider">主序列</span>
                  </div>
                  <div className="flex items-center gap-6 mt-3">
                     <div className="flex flex-col">
-                        <span className="text-[9px] text-zinc-600 uppercase tracking-widest font-bold mb-0.5">Shots</span>
+                        <span className="text-[9px] text-zinc-600 tracking-widest font-bold mb-0.5">镜头</span>
                         <span className="text-sm font-mono text-zinc-300">{project.shots.length}</span>
                     </div>
                     <div className="w-px h-6 bg-zinc-800"></div>
                     <div className="flex flex-col">
-                        <span className="text-[9px] text-zinc-600 uppercase tracking-widest font-bold mb-0.5">Est. Duration</span>
+                        <span className="text-[9px] text-zinc-600 tracking-widest font-bold mb-0.5">预计时长</span>
                         <span className="text-sm font-mono text-zinc-300">~{estimatedDuration}s</span>
                     </div>
                     <div className="w-px h-6 bg-zinc-800"></div>
                     <div className="flex flex-col">
-                        <span className="text-[9px] text-zinc-600 uppercase tracking-widest font-bold mb-0.5">Target</span>
+                        <span className="text-[9px] text-zinc-600 tracking-widest font-bold mb-0.5">目标时长</span>
                         <span className="text-sm font-mono text-zinc-300">{project.targetDuration}</span>
                     </div>
                  </div>
@@ -73,7 +73,7 @@ const StageExport: React.FC<Props> = ({ project }) => {
                  </div>
                  <div className="text-[10px] text-zinc-500 uppercase tracking-widest flex items-center justify-end gap-2">
                     {progress === 100 ? <CheckCircle className="w-3 h-3 text-green-500" /> : <BarChart3 className="w-3 h-3" />}
-                    Render Status
+                    渲染状态
                  </div>
                </div>
              </div>
@@ -81,14 +81,14 @@ const StageExport: React.FC<Props> = ({ project }) => {
              {/* Timeline Visualizer Strip */}
              <div className="mb-10">
                 <div className="flex justify-between text-[10px] text-zinc-600 font-mono uppercase tracking-widest mb-2 px-1">
-                    <span>Sequence Map</span>
+                    <span>镜头时间线</span>
                     <span>TC 00:00:00:00</span>
                 </div>
                 <div className="h-20 bg-[#080808] rounded-lg border border-zinc-800 flex items-center px-2 gap-1 overflow-x-auto custom-scrollbar relative shadow-inner">
                    {project.shots.length === 0 ? (
                       <div className="w-full flex items-center justify-center text-zinc-800 text-xs font-mono uppercase tracking-widest">
                           <Film className="w-4 h-4 mr-2" />
-                          No Shots Available
+                          暂无镜头
                       </div>
                    ) : (
                       project.shots.map((shot, idx) => {
@@ -101,7 +101,7 @@ const StageExport: React.FC<Props> = ({ project }) => {
                                 ? 'bg-indigo-900/40 border border-indigo-500/30 hover:bg-indigo-500/40' 
                                 : 'bg-zinc-900 border border-zinc-800 hover:bg-zinc-800'
                             }`}
-                            title={`Shot ${idx+1}: ${shot.actionSummary}`}
+                            title={`镜头 ${idx+1}：${shot.actionSummary}`}
                           >
                              {/* Mini Progress Bar inside timeline segment */}
                              {isDone && <div className="h-full w-full bg-indigo-500/20"></div>}
@@ -109,7 +109,7 @@ const StageExport: React.FC<Props> = ({ project }) => {
                              {/* Hover Tooltip */}
                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-20 whitespace-nowrap">
                                 <div className="bg-black text-white text-[10px] px-2 py-1 rounded border border-zinc-700 shadow-xl">
-                                    Shot {idx + 1}
+                                    镜头 {idx + 1}
                                 </div>
                              </div>
                           </div>
@@ -129,7 +129,7 @@ const StageExport: React.FC<Props> = ({ project }) => {
                    : 'bg-zinc-900 text-zinc-600 border-zinc-800 cursor-not-allowed'
                }`}>
                  <Download className="w-4 h-4" />
-                 Download Master (.mp4)
+                 下载成片（.mp4）
                </button>
                
                <button className="h-12 bg-[#1A1A1A] hover:bg-zinc-800 text-zinc-300 border border-zinc-700 hover:border-zinc-500 rounded-lg flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-widest transition-all">
@@ -144,22 +144,22 @@ const StageExport: React.FC<Props> = ({ project }) => {
               <div className="p-5 bg-[#141414] border border-zinc-800 rounded-xl hover:border-zinc-600 transition-colors group cursor-pointer flex flex-col justify-between h-32">
                   <Layers className="w-5 h-5 text-zinc-600 group-hover:text-indigo-400 mb-4 transition-colors" />
                   <div>
-                    <h4 className="text-sm font-bold text-white mb-1">Source Assets</h4>
-                    <p className="text-[10px] text-zinc-500">Download all generated images and raw video clips.</p>
+                    <h4 className="text-sm font-bold text-white mb-1">源资产</h4>
+                    <p className="text-[10px] text-zinc-500">下载已生成的图片与原始视频片段。</p>
                   </div>
               </div>
               <div className="p-5 bg-[#141414] border border-zinc-800 rounded-xl hover:border-zinc-600 transition-colors group cursor-pointer flex flex-col justify-between h-32">
                   <Share2 className="w-5 h-5 text-zinc-600 group-hover:text-indigo-400 mb-4 transition-colors" />
                   <div>
-                    <h4 className="text-sm font-bold text-white mb-1">Share Project</h4>
-                    <p className="text-[10px] text-zinc-500">Create a view-only link for client review.</p>
+                    <h4 className="text-sm font-bold text-white mb-1">分享项目</h4>
+                    <p className="text-[10px] text-zinc-500">创建供审阅使用的只读链接。</p>
                   </div>
               </div>
               <div className="p-5 bg-[#141414] border border-zinc-800 rounded-xl hover:border-zinc-600 transition-colors group cursor-pointer flex flex-col justify-between h-32">
                   <Clock className="w-5 h-5 text-zinc-600 group-hover:text-indigo-400 mb-4 transition-colors" />
                   <div>
-                    <h4 className="text-sm font-bold text-white mb-1">Render Logs</h4>
-                    <p className="text-[10px] text-zinc-500">View generation history and token usage.</p>
+                    <h4 className="text-sm font-bold text-white mb-1">渲染记录</h4>
+                    <p className="text-[10px] text-zinc-500">查看生成历史与资源使用情况。</p>
                   </div>
               </div>
           </div>
