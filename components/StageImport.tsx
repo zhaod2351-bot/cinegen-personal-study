@@ -13,7 +13,8 @@ const StageImport: React.FC<Props> = ({ project, updateProject }) => {
   const [copied, setCopied] = useState(false);
   const [plan, setPlan] = useState<ImportedStoryPlan | null>(null);
   const [error, setError] = useState('');
-  const prompt = useMemo(() => buildChatGptImportPrompt(project.rawScript), [project.rawScript]);
+  const creativeContext = `主画风：${project.artStyle || '未设置'}；作品标签：${(project.styleTags || []).join('、') || '未设置'}；画幅：${project.aspectRatio || '16:9'}；时长：${project.targetDuration}`;
+  const prompt = useMemo(() => `项目创作设定：${creativeContext}\n请让角色设计、场景美术和镜头语言保持一致。\n\n${buildChatGptImportPrompt(project.rawScript)}`, [project.rawScript, creativeContext]);
 
   const copyPrompt = async () => {
     try {

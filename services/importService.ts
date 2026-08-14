@@ -31,7 +31,7 @@ const list = (value: unknown, label: string): unknown[] => {
   return value;
 };
 
-export function buildChatGptImportPrompt(rawStory = ''): string {
+export function buildChatGptImportPrompt(rawStory = '', creativeContext = ''): string {
   return `你是影视分镜导演。请将下面故事润色为可拍摄的短剧脚本，并且只输出一个合法 JSON 对象，不要 Markdown、解释或代码围栏。\n\nJSON 格式：\n{\n  "title":"项目标题",\n  "genre":"类型",\n  "logline":"一句话梗概",\n  "polishedScript":"润色后的完整剧本",\n  "targetDuration":"60s",\n  "language":"中文",\n  "characters":[{"name":"角色名","gender":"性别","age":"年龄","personality":"性格/剧情功能","visualPrompt":"可用于角色参考图的视觉描述"}],\n  "scenes":[{"name":"场景名","time":"时间","atmosphere":"氛围","visualPrompt":"可用于场景参考图的视觉描述"}],\n  "storyParagraphs":[{"text":"按场次拆分的剧情段落","scene":"场景名"}],\n  "shots":[{"title":"镜头标题","scene":"场景名","actionSummary":"角色动作、表演与画面内容","dialogue":"对白或旁白，可为空字符串","cameraMovement":"运镜说明","shotSize":"景别，例如中景 MS","characters":["角色名"]}]\n}\n\n严格要求：shots.scene 必须使用 scenes 中已有的 name；shots.characters 必须使用 characters 中已有的 name；每个镜头都要有动作和运镜。\n\n待处理故事：\n${rawStory || '（请在此粘贴你的故事或剧本）'}`;
 }
 
