@@ -58,10 +58,13 @@ export const deleteProjectFromDB = async (id: string): Promise<void> => {
 };
 
 // Initial template for new projects
-export const createNewProjectState = (): ProjectState => {
+export const createNewProjectState = (settings: Pick<ProjectState, 'title' | 'artStyle' | 'styleTags' | 'aspectRatio' | 'targetDuration' | 'language'>): ProjectState => {
   const id = 'proj_' + Date.now().toString(36);
   return {
     id,
+    artStyle: settings.artStyle || '日漫赛璐璐',
+    styleTags: settings.styleTags || [],
+    aspectRatio: settings.aspectRatio || '16:9',
     title: '未命名项目',
     createdAt: Date.now(),
     lastModified: Date.now(),
