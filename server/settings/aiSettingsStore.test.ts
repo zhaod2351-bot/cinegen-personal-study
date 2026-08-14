@@ -14,15 +14,42 @@ class ReversibleProtector {
   }
 }
 
+function createDeferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
+class BlockingProtector extends ReversibleProtector {
+  private readonly protectionStarted = createDeferred();
+  private readonly releaseProtection = createDeferred();
+
+  async protect(value: string): Promise<string> {
+    this.protectionStarted.resolve();
+    await this.releaseProtection.promise;
+    return super.protect(value);
+  }
+
+  async waitForProtection(): Promise<void> {
+    await this.protectionStarted.promise;
+  }
+
+  release(): void {
+    this.releaseProtection.resolve();
+  }
+}
+
 const defaults = {
   text: { baseUrl: "https://text.example/v1", model: "text-model", apiKey: "sk-text-123456" },
   image: { baseUrl: "https://image.example/v1", model: "gpt-image-2", apiKey: "im-image-abcdef" },
 };
 
-async function createStore() {
+async function createStore(protector: ReversibleProtector = new ReversibleProtector()) {
   const directory = await mkdtemp(join(tmpdir(), "cinegen-settings-"));
   const filePath = join(directory, "settings.json");
-  return { filePath, store: new AiSettingsStore({ filePath, protector: new ReversibleProtector(), defaults }) };
+  return { filePath, store: new AiSettingsStore({ filePath, protector, defaults }) };
 }
 
 describe("AiSettingsStore", () => {
@@ -93,5 +120,55 @@ describe("AiSettingsStore", () => {
 
     await expect(restarted.getRuntimeSettings()).rejects.toThrow("cannot decrypt");
     expect(await readFile(filePath, "utf8")).toBe(before);
+  });
+
+  it("keeps concurrent text and image updates", async () => {
+    const protector = new BlockingProtector();
+    const { store } = await createStore(protector);
+    await store.getRuntimeSettings();
+
+    const updates = Promise.all([
+      store.update({ text: { baseUrl: "https://parallel-text.example/v1", model: "parallel-text" } }),
+      store.update({ image: { baseUrl: "https://parallel-image.example/v1", model: "parallel-image" } }),
+    ]);
+    await protector.waitForProtection();
+    protector.release();
+    await updates;
+
+    expect(await store.getRuntimeSettings()).toEqual({
+      text: { baseUrl: "https://parallel-text.example/v1", model: "parallel-text", apiKey: "sk-text-123456" },
+      image: { baseUrl: "https://parallel-image.example/v1", model: "parallel-image", apiKey: "im-image-abcdef" },
+    });
+  });
+
+  it("keeps an update when a concurrent key clear succeeds", async () => {
+    const protector = new BlockingProtector();
+    const { store } = await createStore(protector);
+    await store.getRuntimeSettings();
+
+    const changes = Promise.all([
+      store.update({ text: { baseUrl: "https://parallel-text.example/v1", model: "parallel-text" } }),
+      store.clearKey("image"),
+    ]);
+    await protector.waitForProtection();
+    protector.release();
+    await changes;
+
+    expect(await store.getRuntimeSettings()).toEqual({
+      text: { baseUrl: "https://parallel-text.example/v1", model: "parallel-text", apiKey: "sk-text-123456" },
+      image: { baseUrl: "https://image.example/v1", model: "gpt-image-2" },
+    });
+  });
+
+  it("allows a later change after a failed change", async () => {
+    const { store } = await createStore();
+
+    await expect(store.update({ text: { baseUrl: "https://text.example/v1", model: "  " } })).rejects.toThrow("model");
+    await store.update({ text: { baseUrl: "https://recovery.example/v1", model: "recovery-model" } });
+
+    expect(await store.getPublicSettings()).toEqual({
+      text: { baseUrl: "https://recovery.example/v1", model: "recovery-model", hasKey: true, keyMask: "sk-****3456" },
+      image: { baseUrl: "https://image.example/v1", model: "gpt-image-2", hasKey: true, keyMask: "im-****cdef" },
+    });
   });
 });

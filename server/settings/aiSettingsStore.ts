@@ -69,6 +69,7 @@ function toPublicProviderSettings(settings: RuntimeProviderSettings): PublicProv
 
 export class AiSettingsStore {
   private settings: RuntimeAiSettings | undefined;
+  private changeQueue: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly options: {
@@ -95,26 +96,39 @@ export class AiSettingsStore {
   }
 
   async update(input: AiSettingsUpdate): Promise<PublicAiSettings> {
-    const current = await this.load();
-    const next: RuntimeAiSettings = {
-      text: this.mergeProvider(current.text, input.text),
-      image: this.mergeProvider(current.image, input.image),
-    };
-    await this.save(next);
-    this.settings = next;
-    return this.getPublicSettings();
+    return this.enqueueChange(async () => {
+      const current = await this.load();
+      const next: RuntimeAiSettings = {
+        text: this.mergeProvider(current.text, input.text),
+        image: this.mergeProvider(current.image, input.image),
+      };
+      await this.save(next);
+      this.settings = next;
+      return this.getPublicSettings();
+    });
   }
 
   async clearKey(kind: ProviderKind): Promise<PublicAiSettings> {
-    const current = await this.load();
-    const next: RuntimeAiSettings = {
-      text: { ...current.text },
-      image: { ...current.image },
-    };
-    delete next[kind].apiKey;
-    await this.save(next);
-    this.settings = next;
-    return this.getPublicSettings();
+    return this.enqueueChange(async () => {
+      const current = await this.load();
+      const next: RuntimeAiSettings = {
+        text: { ...current.text },
+        image: { ...current.image },
+      };
+      delete next[kind].apiKey;
+      await this.save(next);
+      this.settings = next;
+      return this.getPublicSettings();
+    });
+  }
+
+  private enqueueChange<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.changeQueue.then(operation);
+    this.changeQueue = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
   }
 
   private mergeProvider(current: RuntimeProviderSettings, input: ProviderSettingsInput | undefined): RuntimeProviderSettings {
