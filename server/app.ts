@@ -28,7 +28,7 @@ const asset = z.object({
   type: assetType,
   name: z.string().min(1),
   description: z.string().min(1),
-  tags: z.array(z.string()).optional(),
+  tags: z.array(z.string().min(1).max(100)).max(20).optional(),
   referenceImages: z.array(referenceImage).max(maxReferenceImagesPerStoryboard).optional(),
 });
 const audioItem = z.object({
@@ -44,19 +44,19 @@ const shot = z.object({
   duration: z.number().positive().max(60),
   action: z.string().min(1),
   visualPrompt: z.string().min(1),
-  audioItems: z.array(audioItem),
-  assets: z.array(assetReference),
+  audioItems: z.array(audioItem).max(20),
+  assets: z.array(assetReference).max(50),
 });
 const clip = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
   summary: z.string().min(1),
-  shots: z.array(shot).min(1),
+  shots: z.array(shot).min(1).max(60),
 });
 const directorPlanInput = z.object({
-  lockedScript: z.string().min(1),
+  lockedScript: z.string().min(1).max(100_000),
   artStyle: z.string().min(1),
-  tags: z.array(z.string()),
+  tags: z.array(z.string().min(1).max(100)).max(20),
   aspectRatio: z.string().min(1),
   language: z.string().min(1),
   targetDuration: z.string().min(1),
@@ -66,9 +66,9 @@ const storyboardInput = z.object({
   projectTitle: z.string().min(1),
   sceneName: z.string().min(1),
   clip,
-  assets: z.array(asset),
+  assets: z.array(asset).max(100),
   artStyle: z.string().min(1),
-  tags: z.array(z.string()),
+  tags: z.array(z.string().min(1).max(100)).max(20),
   aspectRatio: z.string().min(1),
   version: z.number().int().positive(),
 }).superRefine((value, context) => {

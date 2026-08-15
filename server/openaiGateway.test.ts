@@ -2,7 +2,7 @@ import OpenAI, { toFile } from "openai";
 import { describe, expect, it, vi } from "vitest";
 import type { RuntimeAiSettings } from "./settings/types";
 import type { DirectorPlanInput, StoryboardInput } from "./types";
-import { OpenAIGateway } from "./openaiGateway";
+import { downloadGeneratedImage, OpenAIGateway } from "./openaiGateway";
 
 const settings: RuntimeAiSettings = {
   text: {
@@ -318,5 +318,25 @@ describe("OpenAIGateway", () => {
     ).generateStoryboard(storyboardInput), "Image provider API key is not configured"],
   ])("requires the %s provider key before creating a client", async (_kind, invoke, message) => {
     await expect(invoke()).rejects.toThrow(message);
+  });
+
+  it("blocks private generated-image URLs before fetching", async () => {
+    const fetchImpl = vi.fn();
+    await expect(downloadGeneratedImage("http://127.0.0.1/private.png", { fetchImpl })).rejects.toThrow(/private address/);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("blocks redirects to private generated-image URLs", async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: "http://169.254.169.254/secret" } }));
+    const lookupImpl = vi.fn(async () => [{ address: "203.0.113.10", family: 4 }]) as never;
+    await expect(downloadGeneratedImage("https://public.example/image", { fetchImpl, lookupImpl })).rejects.toThrow(/private address/);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects oversized generated images from response headers", async () => {
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 200, headers: { "content-length": String(21 * 1024 * 1024) } }));
+    const lookupImpl = vi.fn(async () => [{ address: "203.0.113.10", family: 4 }]) as never;
+    await expect(downloadGeneratedImage("https://public.example/image", { fetchImpl, lookupImpl })).rejects.toThrow(/too large/);
   });
 });

@@ -83,6 +83,38 @@ async function setup(gateway: AiGateway) {
 }
 
 describe("JobRunner", () => {
+  it("allows one controlled repair attempt for an invalid director plan", async () => {
+    let repairs = 0;
+    const gateway: AiGateway = {
+      async createDirectorPlan() { return { invalid: true }; },
+      async repairDirectorPlan() { repairs += 1; return validPlan; },
+      async generateStoryboard() { return { image: Buffer.from("unused"), model: "unused" }; },
+    };
+    const { store, runner } = await setup(gateway);
+    const job = await runner.runDirectorPlan(directorInput);
+    await runner.waitFor(job.id);
+
+    expect(repairs).toBe(1);
+    expect((await store.get(job.id))?.status).toBe("completed");
+  });
+
+  it("rejects new work while the configured concurrency limit is full", async () => {
+    let release!: () => void;
+    const blocked = new Promise<void>((resolve) => { release = resolve; });
+    const gateway: AiGateway = {
+      async createDirectorPlan() { await blocked; return validPlan; },
+      async generateStoryboard() { return { image: Buffer.from("unused"), model: "unused" }; },
+    };
+    const root = await mkdtemp(join(tmpdir(), "cinegen-limit-"));
+    const store = new JobStore(join(root, "jobs"));
+    const runner = new JobRunner({ store, gateway, archiveRoot: join(root, "archive"), maxConcurrentJobs: 1 });
+    const first = await runner.runDirectorPlan(directorInput);
+
+    await expect(runner.runDirectorPlan(directorInput)).rejects.toMatchObject({ status: 429, code: "AI_JOB_LIMIT_REACHED" });
+    release();
+    await runner.waitFor(first.id);
+  });
+
   it("validates and completes a director plan job", async () => {
     const { store, runner } = await setup(new FakeGateway());
     const job = await runner.runDirectorPlan(directorInput);

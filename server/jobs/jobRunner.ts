@@ -16,23 +16,28 @@ export interface JobRunnerOptions {
   gateway: AiGateway;
   archiveRoot: string;
   retryDelayMs?: number;
+  maxConcurrentJobs?: number;
 }
 
 export class JobRunner {
   private readonly active = new Map<string, Promise<void>>();
   private readonly retryDelayMs: number;
+  private readonly maxConcurrentJobs: number;
 
   constructor(private readonly options: JobRunnerOptions) {
     this.retryDelayMs = options.retryDelayMs ?? 800;
+    this.maxConcurrentJobs = options.maxConcurrentJobs ?? 2;
   }
 
   async runDirectorPlan(input: DirectorPlanInput): Promise<AiJob<DirectorPlanInput>> {
+    this.assertCapacity();
     const job = await this.options.store.create("director-plan", input);
     this.start(job.id, () => this.executeDirectorPlan(job.id, input));
     return job;
   }
 
   async runStoryboard(input: StoryboardInput): Promise<AiJob<StoryboardInput>> {
+    this.assertCapacity();
     const reservation = await reserveStoryboardVersion({
       root: this.options.archiveRoot,
       projectTitle: input.projectTitle,
@@ -54,6 +59,7 @@ export class JobRunner {
   }
 
   async retry(id: string): Promise<AiJob> {
+    this.assertCapacity();
     const original = await this.options.store.get(id);
     if (!original) throw new Error(`Job not found: ${id}`);
     const retried = await this.options.store.retry(id);
@@ -88,12 +94,28 @@ export class JobRunner {
     this.active.set(id, promise);
   }
 
+  private assertCapacity(): void {
+    if (this.active.size >= this.maxConcurrentJobs) {
+      throw Object.assign(new Error("同时运行的 AI 任务过多，请稍后再试"), {
+        status: 429,
+        code: "AI_JOB_LIMIT_REACHED",
+      });
+    }
+  }
+
   private async executeDirectorPlan(id: string, input: DirectorPlanInput): Promise<void> {
     await this.options.store.update(id, { status: "in_progress", progress: 15 });
     try {
       const gateway = await this.captureGateway();
       const raw = await this.withTransientRetries(() => gateway.createDirectorPlan(input));
-      const plan = validateDirectorPlan(raw);
+      let plan: DirectorPlan;
+      try {
+        plan = validateDirectorPlan(raw);
+      } catch (validationError) {
+        if (!gateway.repairDirectorPlan) throw validationError;
+        const repaired = await gateway.repairDirectorPlan(input, raw);
+        plan = validateDirectorPlan(repaired);
+      }
       await this.options.store.update<DirectorPlanInput, DirectorPlan>(id, {
         status: "completed",
         progress: 100,
