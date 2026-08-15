@@ -54,23 +54,25 @@ const StageAssets: React.FC<Props> = ({
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notice, setNotice] = useState("");
-  const [generating, setGenerating] = useState(false);
+  const [generatingAssets, setGeneratingAssets] = useState<Set<string>>(() => new Set());
   const [previewOpen, setPreviewOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const resumedJob = useRef<string | null>(null);
+  const resumedJobs = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!data) return;
-    const locallyPersisted = readPersistedAssetJob(project.id);
-    const projectEntry = Object.entries(project.activeAiJobs || {}).find(([key]) => key.startsWith("asset:"));
-    const fromProject = projectEntry ? assetJobFromProject(projectEntry[0], projectEntry[1].jobId, data) : null;
-    const persisted = locallyPersisted || fromProject;
-    if (!persisted || resumedJob.current === persisted.jobId) return;
-    resumedJob.current = persisted.jobId;
-    void monitorAssetJob(persisted).catch((cause) => {
-      setGenerating(false);
-      notify(cause instanceof Error ? cause.message : "参考图任务恢复失败");
-    });
+    const candidates = [
+      ...readPersistedAssetJobs(project.id),
+      ...Object.entries(project.activeAiJobs || {}).filter(([key]) => key.startsWith("asset:")).map(([key, value]) => assetJobFromProject(key, value.jobId, data)).filter((job): job is PersistedAssetJob => Boolean(job)),
+    ];
+    for (const persisted of new Map(candidates.map((job) => [job.jobId, job])).values()) {
+      if (resumedJobs.current.has(persisted.jobId)) continue;
+      resumedJobs.current.add(persisted.jobId);
+      void monitorAssetJob(persisted).catch((cause) => {
+        markAssetGenerating(persisted, false);
+        notify(cause instanceof Error ? cause.message : "参考图任务恢复失败");
+      });
+    }
   }, [project.id]);
 
   if (!data)
@@ -118,6 +120,7 @@ const StageAssets: React.FC<Props> = ({
             : (shot.props || []).includes(selected.id),
       );
   const tags = selected?.tags || [];
+  const selectedGenerating = selected ? generatingAssets.has(assetTaskKey(kind, selected.id)) : false;
 
   const notify = (message: string) => {
     setNotice(message);
@@ -159,14 +162,23 @@ const StageAssets: React.FC<Props> = ({
   };
 
   const clearPersistedAssetJob = (job: PersistedAssetJob) => {
-    localStorage.removeItem(assetJobStorageKey(project.id));
+    removePersistedAssetJob(project.id, job.jobId);
     const key = `asset:${job.kind}:${job.assetId}`;
     const { [key]: _finished, ...remainingJobs } = project.activeAiJobs || {};
     updateProject({ activeAiJobs: remainingJobs });
   };
 
+  const markAssetGenerating = (job: PersistedAssetJob, active: boolean) => {
+    const key = assetTaskKey(job.kind, job.assetId);
+    setGeneratingAssets((current) => {
+      const next = new Set(current);
+      active ? next.add(key) : next.delete(key);
+      return next;
+    });
+  };
+
   const monitorAssetJob = async (job: PersistedAssetJob) => {
-    setGenerating(true);
+    markAssetGenerating(job, true);
     setNotice(`正在生成${job.assetName}参考图，请稍候……`);
     const complete = await pollAiJob<{ imagePath: string }>(job.jobId, {
       onProgress: (snapshot) => updateProject({
@@ -185,7 +197,7 @@ const StageAssets: React.FC<Props> = ({
     saveReferenceForAsset(job.kind, job.assetId, await blobToDataUrl(await imageResponse.blob()));
     clearPersistedAssetJob(job);
     notify(`${job.assetName}参考图已生成并保存。`);
-    setGenerating(false);
+    markAssetGenerating(job, false);
   };
   const setName = (value: string) =>
     save(isScene ? { location: value } : { name: value });
@@ -290,8 +302,9 @@ const StageAssets: React.FC<Props> = ({
   };
 
   const generateReference = async () => {
-    if (!selected || generating) return;
-    setGenerating(true);
+    if (!selected || selectedGenerating) return;
+    const pendingJob = { jobId: "pending", kind, assetId: selected.id, assetName: name };
+    markAssetGenerating(pendingJob, true);
     setNotice("正在生成参考图，请稍候……");
     try {
       const asset: DirectorAsset = {
@@ -329,7 +342,7 @@ const StageAssets: React.FC<Props> = ({
         version: 1,
       });
       const job = { jobId: created.jobId, kind, assetId: selected.id, assetName: name };
-      localStorage.setItem(assetJobStorageKey(project.id), JSON.stringify(job));
+      persistAssetJob(project.id, job);
       updateProject({ activeAiJobs: {
         ...(project.activeAiJobs || {}),
         [`asset:${kind}:${selected.id}`]: { jobId: created.jobId, kind: "storyboard", status: created.status, progress: 0 },
@@ -338,7 +351,7 @@ const StageAssets: React.FC<Props> = ({
     } catch (cause) {
       notify(cause instanceof Error ? cause.message : "参考图生成失败");
     } finally {
-      setGenerating(false);
+      markAssetGenerating(pendingJob, false);
     }
   };
 
@@ -496,10 +509,10 @@ const StageAssets: React.FC<Props> = ({
                   <button
                     className="primary"
                     onClick={() => void generateReference()}
-                    disabled={generating}
+                    disabled={selectedGenerating}
                   >
                     <Sparkles size={19} />
-                    {generating ? "生成中…" : "重新生成"}
+                    {selectedGenerating ? "生成中…" : "重新生成"}
                   </button>
                   <div className="asset-more">
                     <button
@@ -775,15 +788,32 @@ function assetJobStorageKey(projectId: string): string {
   return `cinegen_asset_job:${projectId}`;
 }
 
-function readPersistedAssetJob(projectId: string): PersistedAssetJob | null {
+function assetTaskKey(kind: AssetKind, assetId: string): string {
+  return `${kind}:${assetId}`;
+}
+
+function readPersistedAssetJobs(projectId: string): PersistedAssetJob[] {
   try {
-    const value = JSON.parse(localStorage.getItem(assetJobStorageKey(projectId)) || "null") as Partial<PersistedAssetJob> | null;
-    return value && typeof value.jobId === "string" && (value.kind === "character" || value.kind === "scene" || value.kind === "prop") && typeof value.assetId === "string" && typeof value.assetName === "string"
-      ? value as PersistedAssetJob
-      : null;
+    const parsed = JSON.parse(localStorage.getItem(assetJobStorageKey(projectId)) || "[]") as unknown;
+    const values = Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
+    return values.filter((value): value is PersistedAssetJob => {
+      const item = value as Partial<PersistedAssetJob>;
+      return typeof item.jobId === "string" && (item.kind === "character" || item.kind === "scene" || item.kind === "prop") && typeof item.assetId === "string" && typeof item.assetName === "string";
+    });
   } catch {
-    return null;
+    return [];
   }
+}
+
+function persistAssetJob(projectId: string, job: PersistedAssetJob): void {
+  const jobs = readPersistedAssetJobs(projectId).filter((item) => item.jobId !== job.jobId);
+  localStorage.setItem(assetJobStorageKey(projectId), JSON.stringify([...jobs, job]));
+}
+
+function removePersistedAssetJob(projectId: string, jobId: string): void {
+  const jobs = readPersistedAssetJobs(projectId).filter((item) => item.jobId !== jobId);
+  if (jobs.length) localStorage.setItem(assetJobStorageKey(projectId), JSON.stringify(jobs));
+  else localStorage.removeItem(assetJobStorageKey(projectId));
 }
 
 function assetJobFromProject(key: string, jobId: string, data: NonNullable<ProjectState["scriptData"]>): PersistedAssetJob | null {

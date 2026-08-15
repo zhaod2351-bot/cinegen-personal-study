@@ -82,4 +82,21 @@ describe("StageAssets image generation", () => {
     await waitFor(() => expect(localApiFetch).toHaveBeenCalledWith("/api/jobs/persisted-image-job/image"));
     await waitFor(() => expect(localStorage.getItem("cinegen_asset_job:project-1")).toBeNull());
   });
+
+  it("allows a different asset to generate while the first asset is still running", async () => {
+    createStoryboardJob
+      .mockResolvedValueOnce({ jobId: "character-job", status: "queued" })
+      .mockResolvedValueOnce({ jobId: "scene-job", status: "queued" });
+    pollAiJob.mockImplementation(() => new Promise(() => undefined));
+    render(<StageAssets project={project} updateProject={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "重新生成" }));
+    await waitFor(() => expect(createStoryboardJob).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "场景" }));
+    const sceneGenerate = screen.getByRole("button", { name: "重新生成" });
+    expect(sceneGenerate).not.toBeDisabled();
+    fireEvent.click(sceneGenerate);
+
+    await waitFor(() => expect(createStoryboardJob).toHaveBeenCalledTimes(2));
+  });
 });
