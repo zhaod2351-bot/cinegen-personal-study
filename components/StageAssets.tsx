@@ -481,6 +481,11 @@ const StageAssets: React.FC<Props> = ({
                       {selected.referenceImage && <button onClick={() => setPreviewOpen(true)}><Eye size={17} />查看大图</button>}
                       {selected.referenceImage && <a href={selected.referenceImage} download={`${name || "参考图"}.webp`}><Download size={17} />下载保存</a>}
                       <button onClick={() => fileRef.current?.click()}><ImageUp size={17} />上传 / 替换</button>
+                      {selected.referenceImage && <button className="danger" onClick={() => {
+                        if (!window.confirm(`确定删除“${name}”的当前参考图吗？`)) return;
+                        save({ referenceImage: undefined });
+                        notify("参考图已删除，资产文字资料仍然保留。 ");
+                      }}><Trash2 size={17} />删除图片</button>}
                     </div>
                     <input
                       ref={fileRef}

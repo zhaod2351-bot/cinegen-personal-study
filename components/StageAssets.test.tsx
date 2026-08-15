@@ -51,4 +51,20 @@ describe("StageAssets image generation", () => {
     }));
     await waitFor(() => expect(localApiFetch).toHaveBeenCalledWith("/api/jobs/image-job-1/image"));
   });
+
+  it("removes only the selected reference image after confirmation", () => {
+    const withImage = structuredClone(project) as typeof project;
+    (withImage as never as { scriptData: { characters: Array<{ referenceImage?: string }> } }).scriptData.characters[0].referenceImage = "data:image/png;base64,aW1hZ2U=";
+    const updateProject = vi.fn();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<StageAssets project={withImage} updateProject={updateProject} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "删除图片" }));
+
+    expect(updateProject).toHaveBeenCalledWith(expect.objectContaining({
+      scriptData: expect.objectContaining({
+        characters: [expect.objectContaining({ id: "character-1", referenceImage: undefined })],
+      }),
+    }));
+  });
 });
