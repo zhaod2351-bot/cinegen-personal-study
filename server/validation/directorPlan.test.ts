@@ -47,6 +47,19 @@ describe("validateDirectorPlan", () => {
     expect(validateDirectorPlan(validPlan).clips[0].shots).toHaveLength(2);
   });
 
+  it("normalizes detailed relay audio categories without losing content", () => {
+    const relayPlan = structuredClone(validPlan);
+    relayPlan.clips[0].shots[0].audioItems = [
+      { type: "脚步声", content: "碎石上的脚步" },
+      { type: "角色声音", content: "急促喘息" },
+    ];
+
+    expect(validateDirectorPlan(relayPlan).clips[0].shots[0].audioItems).toEqual([
+      { type: "音效", content: "碎石上的脚步" },
+      { type: "音效", content: "急促喘息" },
+    ]);
+  });
+
   it("rejects a shot that references a missing asset", () => {
     const broken = structuredClone(validPlan);
     broken.clips[0].shots[0].assets.push({ type: "prop", id: "missing" });

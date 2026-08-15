@@ -64,6 +64,19 @@ export class JobRunner {
     if (!original) throw new Error(`Job not found: ${id}`);
     const retried = await this.options.store.retry(id);
     if (retried.kind === "director-plan") {
+      if (original.result !== undefined) {
+        try {
+          const recovered = validateDirectorPlan(original.result);
+          return await this.options.store.update(retried.id, {
+            status: "completed",
+            progress: 100,
+            result: recovered,
+            error: undefined,
+          });
+        } catch {
+          // The saved paid response still needs a provider-specific adapter.
+        }
+      }
       this.start(retried.id, () => this.executeDirectorPlan(retried.id, retried.payload as DirectorPlanInput));
     } else {
       this.start(retried.id, () => this.executeStoryboard(retried.id, retried.payload as StoryboardInput));

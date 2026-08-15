@@ -102,6 +102,30 @@ describe("JobRunner", () => {
     });
   });
 
+  it("recovers a saved paid response locally without another provider request", async () => {
+    let providerCalls = 0;
+    const relayPlan = structuredClone(validPlan) as unknown as {
+      clips: Array<{ shots: Array<{ audioItems: Array<{ type: string; content: string }> }> }>;
+    };
+    relayPlan.clips[0].shots[0].audioItems = [{ type: "爆炸音效", content: "爆炸声" }];
+    const gateway: AiGateway = {
+      async createDirectorPlan() { providerCalls += 1; return relayPlan; },
+      async generateStoryboard() { return { image: Buffer.from("unused"), model: "unused" }; },
+    };
+    const { store, runner } = await setup(gateway);
+    const failed = await store.create("director-plan", directorInput);
+    await store.update(failed.id, { status: "failed", result: relayPlan });
+
+    const recovered = await runner.retry(failed.id);
+
+    expect(providerCalls).toBe(0);
+    expect(recovered.status).toBe("completed");
+    expect((recovered.result as DirectorPlan).clips[0].shots[0].audioItems[0]).toEqual({
+      type: "音效",
+      content: "爆炸声",
+    });
+  });
+
   it("replaces repeated schema details with a concise safe message", async () => {
     const gateway: AiGateway = {
       async createDirectorPlan() { return { invalid: true }; },

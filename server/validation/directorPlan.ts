@@ -16,8 +16,20 @@ const AssetReferenceSchema = z.object({
   id: z.string().min(1),
 });
 
+const supportedAudioTypes = ["对白", "旁白", "音效", "环境音", "音乐"] as const;
+
+function normalizeAudioType(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  if ((supportedAudioTypes as readonly string[]).includes(value)) return value;
+  if (value.includes("环境")) return "环境音";
+  if (value.includes("音乐") || value.includes("配乐")) return "音乐";
+  if (value.includes("旁白")) return "旁白";
+  if (value.includes("对白") || value.includes("台词")) return "对白";
+  return "音效";
+}
+
 const AudioItemSchema = z.object({
-  type: z.enum(["对白", "旁白", "音效", "环境音", "音乐"]),
+  type: z.preprocess(normalizeAudioType, z.enum(supportedAudioTypes)),
   content: z.string().min(1),
   speaker: z.string().min(1).optional(),
 });
