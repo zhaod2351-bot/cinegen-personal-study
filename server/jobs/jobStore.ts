@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 export type JobKind = "director-plan" | "storyboard";
@@ -116,10 +116,37 @@ export class JobStore {
       await mkdir(this.directory, { recursive: true });
       const temporary = `${this.filePath}.${randomUUID()}.tmp`;
       await writeFile(temporary, JSON.stringify(jobs, null, 2), "utf8");
-      await rename(temporary, this.filePath);
+      await replaceFileOnWindows(temporary, this.filePath);
     });
     this.writeQueue = operation.catch(() => undefined);
     await operation;
     return output;
   }
+}
+
+async function replaceFileOnWindows(temporary: string, destination: string): Promise<void> {
+  try {
+    await retryTransientFileOperation(() => rename(temporary, destination));
+  } catch (error) {
+    if (!isTransientWindowsFileError(error)) throw error;
+    await retryTransientFileOperation(() => copyFile(temporary, destination));
+    await rm(temporary, { force: true });
+  }
+}
+
+export async function retryTransientFileOperation(operation: () => Promise<void>, delays = [20, 50, 100, 200, 400]): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await operation();
+      return;
+    } catch (error) {
+      if (!isTransientWindowsFileError(error) || attempt >= delays.length) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+    }
+  }
+}
+
+function isTransientWindowsFileError(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException)?.code;
+  return code === "EPERM" || code === "EBUSY" || code === "EACCES";
 }

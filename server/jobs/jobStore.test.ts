@@ -2,9 +2,18 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { JobStore } from "./jobStore";
+import { JobStore, retryTransientFileOperation } from "./jobStore";
 
 describe("JobStore", () => {
+  it("retries transient Windows file locks before giving up", async () => {
+    let attempts = 0;
+    await retryTransientFileOperation(async () => {
+      attempts += 1;
+      if (attempts < 3) throw Object.assign(new Error("locked"), { code: "EPERM" });
+    }, [0, 0]);
+    expect(attempts).toBe(3);
+  });
+
   it("restores a completed job after creating a new store", async () => {
     const directory = await mkdtemp(join(tmpdir(), "cinegen-jobs-"));
     const first = new JobStore(directory);
