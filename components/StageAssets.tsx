@@ -850,17 +850,17 @@ function SkillCard({ skill, editing, update, remove, notify }: { skill: Characte
     reader.onload = () => { update({ referenceImage: String(reader.result) }); notify(`${skill.name}技能图片已保存。`); };
     reader.readAsDataURL(file);
   };
-  return <article className="grid min-h-[240px] grid-cols-[180px_1fr] gap-4 rounded-lg border border-[#e2d6c6] bg-[#fffaf2] p-4">
+  return <article className="grid min-h-[360px] grid-cols-[180px_1fr] gap-4 rounded-lg border border-[#e2d6c6] bg-[#fffaf2] p-4">
     <div>
       <div className="grid h-[170px] place-items-center overflow-hidden rounded-md border border-[#d8cbbb] bg-[#eee9e1]">{skill.referenceImage ? <img src={skill.referenceImage} alt={`${skill.name}技能图`} className="h-full w-full object-contain" /> : <Sparkles size={34} className="text-[#b7a99b]" />}</div>
       {editing && <><button type="button" onClick={() => inputRef.current?.click()} className="mt-2 w-full rounded border border-[#c9b9a7] bg-white py-2 text-sm">{skill.referenceImage ? "替换技能图" : "上传技能图"}</button><input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={upload} /></>}
     </div>
     <div className="min-w-0 space-y-3">
       {editing ? <input aria-label={`技能名称-${skill.id}`} value={skill.name} onChange={(event) => update({ name: event.target.value })} className="w-full rounded border border-[#d8cbbb] bg-white px-3 py-2 text-lg font-semibold" /> : <h3 className="text-lg font-semibold">{skill.name}</h3>}
-      <label className="block text-xs text-[#86786c]">技能说明{editing ? <textarea aria-label={`技能说明-${skill.id}`} value={skill.description} onChange={(event) => update({ description: event.target.value })} className="mt-1 min-h-16 w-full rounded border border-[#d8cbbb] bg-white p-2 text-sm text-[#30251d]" /> : <p className="mt-1 text-sm leading-6 text-[#30251d]">{skill.description}</p>}</label>
       <label className="block text-xs text-[#86786c]">技能视觉参考{editing ? <textarea aria-label={`技能视觉参考-${skill.id}`} value={skill.visualPrompt} onChange={(event) => update({ visualPrompt: event.target.value })} className="mt-1 min-h-16 w-full rounded border border-[#d8cbbb] bg-white p-2 text-sm text-[#30251d]" /> : <p className="mt-1 text-sm leading-6 text-[#6f4c31]">{skill.visualPrompt}</p>}</label>
-      {editing && <button type="button" onClick={remove} className="flex items-center gap-1 text-sm text-red-700"><Trash2 size={15} />删除技能</button>}
     </div>
+    <label className="col-span-2 block text-xs text-[#86786c]">技能说明（效果、机制、限制与冷却）{editing ? <textarea aria-label={`技能说明-${skill.id}`} value={skill.description} onChange={(event) => update({ description: event.target.value })} className="mt-1 min-h-32 w-full resize-y rounded border border-[#d8cbbb] bg-white p-3 text-sm leading-6 text-[#30251d]" /> : <p className="mt-1 min-h-24 whitespace-pre-wrap rounded border border-[#eadfd2] bg-white/70 p-3 text-sm leading-6 text-[#30251d]">{skill.description}</p>}</label>
+    {editing && <button type="button" onClick={remove} className="col-span-2 flex items-center gap-1 justify-self-start text-sm text-red-700"><Trash2 size={15} />删除技能</button>}
   </article>;
 }
 
