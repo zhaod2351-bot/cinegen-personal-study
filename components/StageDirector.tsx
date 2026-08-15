@@ -100,7 +100,7 @@ const StageDirector: React.FC<Props> = ({ project, updateProject, initialShotId 
         projectTitle: project.title,
         sceneName: activeClip.title || `场次 ${activeClip.id}`,
         clip: activeClip,
-        assets: buildAssets(project, activeClip),
+        assets: await prepareStoryboardAssets(buildAssets(project, activeClip)),
         artStyle: project.artStyle || "日漫赛璐路",
         tags: project.styleTags || [],
         aspectRatio: project.aspectRatio || "16:9",
@@ -163,6 +163,64 @@ function withReferences(asset: DirectorAsset, dataUrls: Array<string | undefined
     ...asset,
     referenceImages,
   };
+}
+
+const STORYBOARD_REFERENCE_TOTAL_BYTES = 7.5 * 1024 * 1024;
+const STORYBOARD_REFERENCE_IMAGE_BYTES = 1.5 * 1024 * 1024;
+
+async function prepareStoryboardAssets(assets: DirectorAsset[]): Promise<DirectorAsset[]> {
+  let remainingBytes = STORYBOARD_REFERENCE_TOTAL_BYTES;
+  let remainingImages = 8;
+  const prepared: DirectorAsset[] = [];
+  for (const asset of assets) {
+    const references: NonNullable<DirectorAsset["referenceImages"]> = [];
+    for (const reference of asset.referenceImages || []) {
+      if (remainingImages <= 0 || remainingBytes <= 0) break;
+      const compact = decodedReferenceBytes(reference.data) > STORYBOARD_REFERENCE_IMAGE_BYTES
+        ? await compressReferenceImage(reference).catch(() => null)
+        : reference;
+      if (!compact) continue;
+      const bytes = decodedReferenceBytes(compact.data);
+      if (bytes > STORYBOARD_REFERENCE_IMAGE_BYTES || bytes > remainingBytes) continue;
+      references.push(compact);
+      remainingBytes -= bytes;
+      remainingImages -= 1;
+    }
+    prepared.push(references.length ? { ...asset, referenceImages: references } : { ...asset, referenceImages: undefined });
+  }
+  return prepared;
+}
+
+function decodedReferenceBytes(data: string): number {
+  const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor(data.length * 3 / 4) - padding);
+}
+
+async function compressReferenceImage(reference: NonNullable<DirectorAsset["referenceImages"]>[number]) {
+  const source = `data:${reference.mimeType};base64,${reference.data}`;
+  const image = await loadReferenceImage(source);
+  const scale = Math.min(1, 1600 / Math.max(image.naturalWidth, image.naturalHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("无法压缩参考图");
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  for (const quality of [0.82, 0.68, 0.5]) {
+    const dataUrl = canvas.toDataURL("image/webp", quality);
+    const match = /^data:image\/webp;base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl);
+    if (match && decodedReferenceBytes(match[1]) <= STORYBOARD_REFERENCE_IMAGE_BYTES) return { mimeType: "image/webp" as const, data: match[1] };
+  }
+  return null;
+}
+
+function loadReferenceImage(source: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("无法读取参考图"));
+    image.src = source;
+  });
 }
 
 function assetName(project: ProjectState, type: string, id: string): string {
