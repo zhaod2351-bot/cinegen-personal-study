@@ -119,7 +119,6 @@ const StageAssets: React.FC<Props> = ({
             ? shot.sceneId === selected.id
             : (shot.props || []).includes(selected.id),
       );
-  const tags = selected?.tags || [];
   const imageAspectRatio = selected?.imageAspectRatio || (isCharacter ? "2:3" : isScene ? "16:9" : "1:1");
   const imageResolution = selected?.imageResolution || "1K";
   const selectedGenerating = selected ? generatingAssets.has(assetTaskKey(kind, selected.id)) : false;
@@ -323,7 +322,6 @@ const StageAssets: React.FC<Props> = ({
         type: kind,
         name,
         description: selected.visualPrompt || note || `${typeName}${name}`,
-        tags,
         sceneContinuity: isScene ? {
           time: (selected as Scene).time || "日间",
           weather: (selected as Scene).weather || "晴朗少云",
@@ -711,18 +709,6 @@ const StageAssets: React.FC<Props> = ({
                               <span>{name}</span>
                             </p>
                           )}
-                          <p className="tag-row">
-                            <label>标签</label>
-                            {editing ? (
-                              <TagEditor key={`${kind}:${selected.id}`} tags={tags} onSave={(nextTags) => save({ tags: nextTags })} />
-                            ) : (
-                              <span>
-                                {tags.length
-                                  ? tags.map((tag) => <i key={tag}>#{tag}</i>)
-                                  : "未设置"}
-                              </span>
-                            )}
-                          </p>
                         </div>
                         <div>
                           <h3>统计数据</h3>
@@ -824,23 +810,6 @@ function SceneContinuityFields({ scene, editing, save }: { scene: Scene; editing
       ) : <span>{value}</span>}
     </p>
   ))}</>;
-}
-
-function TagEditor({ tags, onSave }: { tags: string[]; onSave: (tags: string[]) => void }) {
-  const [draft, setDraft] = useState(tags.join("，"));
-  const commit = () => onSave(draft.split(/[，,]/).map((tag) => tag.trim()).filter(Boolean));
-  return (
-    <input
-      aria-label="资产标签"
-      value={draft}
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={commit}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") event.currentTarget.blur();
-      }}
-      placeholder="用逗号分隔"
-    />
-  );
 }
 
 export default StageAssets;

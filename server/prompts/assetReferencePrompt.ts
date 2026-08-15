@@ -29,7 +29,6 @@ export function buildAssetReferencePrompt(input: StoryboardInput): string {
     ] : []),
     `Description: ${asset?.description || visual}`,
     `Visual direction: ${visual}`,
-    `Asset tags: ${asset?.tags?.join(", ") || "none"}`,
     `Aspect ratio: ${input.aspectRatio}`,
     "",
     asset?.type === "character"

@@ -145,16 +145,10 @@ describe("StageAssets image generation", () => {
     })));
   });
 
-  it("keeps Chinese and English commas visible while editing tags", () => {
-    const updateProject = vi.fn();
-    render(<StageAssets project={project} updateProject={updateProject} />);
+  it("does not show asset tags as a competing image prompt field", () => {
+    render(<StageAssets project={project} updateProject={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "编辑" }));
-    const input = screen.getByRole("textbox", { name: "资产标签" }) as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "男主，冒险者," } });
-    expect(input.value).toBe("男主，冒险者,");
-    fireEvent.blur(input);
-    expect(updateProject).toHaveBeenCalledWith(expect.objectContaining({
-      scriptData: expect.objectContaining({ characters: [expect.objectContaining({ tags: ["男主", "冒险者"] })] }),
-    }));
+    expect(screen.queryByRole("textbox", { name: "资产标签" })).toBeNull();
+    expect(screen.queryByText("标签")).toBeNull();
   });
 });
