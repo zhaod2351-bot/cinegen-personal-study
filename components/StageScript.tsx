@@ -20,6 +20,10 @@ const textModelChoices = [
   { value: "gpt-5.5", label: "GPT-5.5" },
 ];
 
+const relayChoices = [
+  { value: "xingkong-wuqiong", label: "星空无穷科技" },
+];
+
 const StageScript: React.FC<Props> = ({ project, updateProject, onOpenAssets }) => {
   const [view, setView] = useState<View>(project.scriptData ? "breakdown" : "source");
   const [script, setScript] = useState(project.rawScript);
@@ -141,7 +145,7 @@ const StageScript: React.FC<Props> = ({ project, updateProject, onOpenAssets }) 
             镜头剧本
           </button>
         </div>
-        <div className="flex items-center gap-3"><label className="flex items-center gap-2 text-xs text-[#75685d]"><span>文本模型</span><select aria-label="剧本分析模型" value={textProvider?.model || ""} disabled={!textProvider || savingModel || status === "running"} onChange={(event) => void selectTextModel(event.target.value)} className="h-11 rounded-md border border-[#d8cbbb] bg-white px-3 text-sm text-[#3d3129] disabled:opacity-50">{!textProvider && <option value="">读取中……</option>}{textProvider && !textModelChoices.some((item) => item.value === textProvider.model) && <option value={textProvider.model}>{textProvider.model}（自定义）</option>}{textModelChoices.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>{project.scriptData && <button onClick={onOpenAssets} className="rounded-md border border-[#d8cbbb] bg-white px-5 py-3 text-sm font-semibold">进入工作台</button>}<button onClick={analyze} disabled={status === "running" || savingModel} className="flex items-center gap-2 rounded-md bg-[#c4510a] px-5 py-3 text-sm font-semibold text-white shadow-sm disabled:opacity-60">
+        <div className="flex items-center gap-3"><label className="flex items-center gap-2 text-xs text-[#75685d]"><span>中转站</span><select aria-label="剧本分析中转站" value="xingkong-wuqiong" disabled={status === "running"} className="h-11 rounded-md border border-[#d8cbbb] bg-white px-3 text-sm text-[#3d3129] disabled:opacity-60">{relayChoices.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label className="flex items-center gap-2 text-xs text-[#75685d]"><span>文本模型</span><select aria-label="剧本分析模型" value={textProvider?.model || ""} disabled={!textProvider || savingModel || status === "running"} onChange={(event) => void selectTextModel(event.target.value)} className="h-11 rounded-md border border-[#d8cbbb] bg-white px-3 text-sm text-[#3d3129] disabled:opacity-50">{!textProvider && <option value="">读取中……</option>}{textProvider && !textModelChoices.some((item) => item.value === textProvider.model) && <option value={textProvider.model}>{textProvider.model}（自定义）</option>}{textModelChoices.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>{project.scriptData && <button onClick={onOpenAssets} className="rounded-md border border-[#d8cbbb] bg-white px-5 py-3 text-sm font-semibold">进入工作台</button>}<button onClick={analyze} disabled={status === "running" || savingModel} className="flex items-center gap-2 rounded-md bg-[#c4510a] px-5 py-3 text-sm font-semibold text-white shadow-sm disabled:opacity-60">
           {status === "running" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
           AI 剧本分析
         </button></div>
