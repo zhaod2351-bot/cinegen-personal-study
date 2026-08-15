@@ -13,6 +13,9 @@ import {
   Trash2,
   User,
 } from "lucide-react";
+import type { DirectorAsset, DirectorClip } from "../server/types";
+import { createStoryboardJob, pollAiJob } from "../services/aiApiService";
+import { localApiFetch } from "../services/localApiSession";
 import { Character, ProjectState, PropAsset, Scene } from "../types";
 
 type AssetKind = "character" | "scene" | "prop";
@@ -47,6 +50,7 @@ const StageAssets: React.FC<Props> = ({
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notice, setNotice] = useState("");
+  const [generating, setGenerating] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   if (!data)
@@ -224,6 +228,58 @@ const StageAssets: React.FC<Props> = ({
     reader.readAsDataURL(file);
   };
 
+  const generateReference = async () => {
+    if (!selected || generating) return;
+    setGenerating(true);
+    setNotice("正在生成参考图，请稍候……");
+    try {
+      const asset: DirectorAsset = {
+        id: selected.id,
+        type: kind,
+        name,
+        description: selected.visualPrompt || note || `${typeName}${name}`,
+        tags,
+      };
+      const clip: DirectorClip = {
+        id: `asset-${selected.id}`,
+        title: `${name}参考图`,
+        summary: `生成${typeName}${name}的视觉设定参考图`,
+        shots: [{
+          id: `asset-shot-${selected.id}`,
+          title: `${name}设定图`,
+          shotSize: kind === "character" ? "全身设定图" : "广角设定图",
+          cameraMovement: "固定镜头",
+          duration: 1,
+          action: `清晰展示${typeName}${name}，便于后续镜头保持视觉一致性`,
+          visualPrompt: selected.visualPrompt || note || `${name}，${project.artStyle || "日漫赛璐路"}，纯净构图，完整细节`,
+          audioItems: [],
+          assets: [{ type: kind, id: selected.id }],
+        }],
+      };
+      const created = await createStoryboardJob({
+        projectId: project.id,
+        projectTitle: project.title,
+        sceneName: `资产-${typeName}-${name}`,
+        clip,
+        assets: [asset],
+        artStyle: project.artStyle || "日漫赛璐路",
+        tags: project.styleTags || [],
+        aspectRatio: project.aspectRatio || "16:9",
+        version: 1,
+      });
+      const complete = await pollAiJob<{ imagePath: string }>(created.jobId);
+      if (complete.status === "failed") throw new Error(complete.error || "参考图生成失败");
+      const imageResponse = await localApiFetch(`/api/jobs/${encodeURIComponent(created.jobId)}/image`);
+      if (!imageResponse.ok) throw new Error("生成成功，但读取参考图失败");
+      save({ referenceImage: await blobToDataUrl(await imageResponse.blob()) });
+      notify(`${name}参考图已生成并保存。`);
+    } catch (cause) {
+      notify(cause instanceof Error ? cause.message : "参考图生成失败");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   return (
     <section className="asset-studio">
       <header className="asset-category-bar">
@@ -377,12 +433,11 @@ const StageAssets: React.FC<Props> = ({
                   </button>
                   <button
                     className="primary"
-                    onClick={() =>
-                      notify("生图 API 尚未配置；当前手填资料与参考图已保留。")
-                    }
+                    onClick={() => void generateReference()}
+                    disabled={generating}
                   >
                     <Sparkles size={19} />
-                    重新生成
+                    {generating ? "生成中…" : "重新生成"}
                   </button>
                   <div className="asset-more">
                     <button
@@ -630,3 +685,12 @@ const StageAssets: React.FC<Props> = ({
 };
 
 export default StageAssets;
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("无法读取生成的图片"));
+    reader.readAsDataURL(blob);
+  });
+}
