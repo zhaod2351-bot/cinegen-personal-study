@@ -7,6 +7,8 @@ import {
   ImageUp,
   List,
   MapPin,
+  Maximize2,
+  Minimize2,
   MoreVertical,
   Pencil,
   Plus,
@@ -865,7 +867,7 @@ function CharacterSkillsSection({ character, editing, save, notify }: { characte
         <div><h2 className="text-xl font-semibold text-[#30251d]">固定技能库</h2><p className="mt-1 text-sm text-[#86786c]">长期角色的能力设定与技能参考图会跟随角色保存。</p></div>
         {editing && <button type="button" onClick={addSkill} className="flex items-center gap-2 rounded-md bg-[#c7530a] px-4 py-2 text-sm text-white"><Plus size={17} />添加技能</button>}
       </header>
-      {skills.length ? <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">{skills.map((skill) => <SkillCard key={skill.id} skill={skill} editing={editing} update={(changes) => updateSkill(skill.id, changes)} remove={() => removeSkill(skill.id)} notify={notify} />)}</div> : <div className="rounded-lg border border-dashed border-[#d8cbbb] py-10 text-center text-[#9a8b7c]">尚未设置固定技能。{editing ? "点击“添加技能”开始建立。" : "进入编辑模式后可以添加。"}</div>}
+      {skills.length ? <div className="grid grid-cols-1 gap-5">{skills.map((skill) => <SkillCard key={skill.id} skill={skill} editing={editing} update={(changes) => updateSkill(skill.id, changes)} remove={() => removeSkill(skill.id)} notify={notify} />)}</div> : <div className="rounded-lg border border-dashed border-[#d8cbbb] py-10 text-center text-[#9a8b7c]">尚未设置固定技能。{editing ? "点击“添加技能”开始建立。" : "进入编辑模式后可以添加。"}</div>}
     </section>
   );
 }
@@ -873,6 +875,7 @@ function CharacterSkillsSection({ character, editing, save, notify }: { characte
 function SkillCard({ skill, editing, update, remove, notify }: { skill: CharacterSkill; editing: boolean; update: (changes: Partial<CharacterSkill>) => void; remove: () => void; notify: (message: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [visualPromptExpanded, setVisualPromptExpanded] = useState(false);
   const upload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -881,7 +884,7 @@ function SkillCard({ skill, editing, update, remove, notify }: { skill: Characte
     reader.onload = () => { update({ referenceImage: String(reader.result) }); notify(`${skill.name}技能图片已保存。`); };
     reader.readAsDataURL(file);
   };
-  return <article className="grid min-h-[360px] grid-cols-[180px_1fr] gap-4 rounded-lg border border-[#e2d6c6] bg-[#fffaf2] p-4">
+  return <article className="grid min-h-[360px] grid-cols-[220px_minmax(0,1fr)] gap-5 rounded-lg border border-[#e2d6c6] bg-[#fffaf2] p-4">
     <div>
       <div className="grid h-[170px] place-items-center overflow-hidden rounded-md border border-[#d8cbbb] bg-[#eee9e1]">
         {skill.referenceImage ? <img src={skill.referenceImage} alt={`${skill.name}技能图`} className="h-full w-full object-contain" /> : <Sparkles size={34} className="text-[#b7a99b]" />}
@@ -896,7 +899,10 @@ function SkillCard({ skill, editing, update, remove, notify }: { skill: Characte
     </div>
     <div className="min-w-0 space-y-3">
       {editing ? <input aria-label={`技能名称-${skill.id}`} value={skill.name} onChange={(event) => update({ name: event.target.value })} className="w-full rounded border border-[#d8cbbb] bg-white px-3 py-2 text-lg font-semibold" /> : <h3 className="text-lg font-semibold">{skill.name}</h3>}
-      <label className="block text-xs text-[#86786c]">技能视觉参考{editing ? <textarea aria-label={`技能视觉参考-${skill.id}`} value={skill.visualPrompt} onChange={(event) => update({ visualPrompt: event.target.value })} className="mt-1 min-h-16 w-full rounded border border-[#d8cbbb] bg-white p-2 text-sm text-[#30251d]" /> : <p className="mt-1 text-sm leading-6 text-[#6f4c31]">{skill.visualPrompt}</p>}</label>
+      <div className="text-xs text-[#86786c]">
+        <div className="flex items-center justify-between"><span>技能视觉参考</span><button type="button" aria-label={`${visualPromptExpanded ? "缩回" : "放大"}${skill.name}技能视觉参考`} aria-expanded={visualPromptExpanded} onClick={() => setVisualPromptExpanded((current) => !current)} className="flex items-center gap-1 rounded border border-[#d8cbbb] bg-white px-2 py-1 text-xs !text-[#6f4c31]">{visualPromptExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{visualPromptExpanded ? "缩回" : "放大"}</button></div>
+        {editing ? <textarea aria-label={`技能视觉参考-${skill.id}`} value={skill.visualPrompt} onChange={(event) => update({ visualPrompt: event.target.value })} className={`mt-1 w-full resize-none overflow-y-auto rounded border border-[#d8cbbb] bg-white p-3 text-sm leading-6 text-[#30251d] transition-[height] ${visualPromptExpanded ? "h-72" : "h-32"}`} /> : <p className={`mt-1 overflow-y-auto whitespace-pre-wrap rounded border border-[#eadfd2] bg-white/70 p-3 text-sm leading-6 text-[#6f4c31] ${visualPromptExpanded ? "max-h-72 min-h-48" : "max-h-32 min-h-24"}`}>{skill.visualPrompt || "尚未填写技能视觉参考。"}</p>}
+      </div>
     </div>
     <label className="col-span-2 block text-xs text-[#86786c]">技能说明（效果、机制、限制与冷却）{editing ? <textarea aria-label={`技能说明-${skill.id}`} value={skill.description} onChange={(event) => update({ description: event.target.value })} className="mt-1 min-h-32 w-full resize-y rounded border border-[#d8cbbb] bg-white p-3 text-sm leading-6 text-[#30251d]" /> : <p className="mt-1 min-h-24 whitespace-pre-wrap rounded border border-[#eadfd2] bg-white/70 p-3 text-sm leading-6 text-[#30251d]">{skill.description}</p>}</label>
     {editing && <button type="button" onClick={remove} className="col-span-2 flex items-center gap-1 justify-self-start text-sm text-red-700"><Trash2 size={15} />删除技能</button>}
