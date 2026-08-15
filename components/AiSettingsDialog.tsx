@@ -188,6 +188,8 @@ const AiSettingsDialog: React.FC<AiSettingsDialogProps> = ({ onClose }) => {
   const overlayRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const initialFocusRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const [settings, setSettings] = useState<PublicAiSettings>({ text: emptyProvider, image: emptyProvider });
   const [textInput, setTextInput] = useState<ProviderSettingsInput>(() => toInput(emptyProvider));
   const [imageInput, setImageInput] = useState<ProviderSettingsInput>(() => toInput(emptyProvider));
@@ -233,7 +235,7 @@ const AiSettingsDialog: React.FC<AiSettingsDialogProps> = ({ onClose }) => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== "Tab") return;
@@ -268,11 +270,12 @@ const AiSettingsDialog: React.FC<AiSettingsDialogProps> = ({ onClose }) => {
       }
       restoreFocusTo?.focus();
     };
-  }, [onClose]);
+  }, []);
 
   const runProviderAction = async (kind: ProviderKind, action: Exclude<ProviderAction, null>, operation: () => Promise<void>) => {
     setProviderActions((current) => ({ ...current, [kind]: action }));
     setProviderMessages((current) => ({ ...current, [kind]: undefined }));
+    setGlobalMessage("");
     try {
       await operation();
     } catch (error) {

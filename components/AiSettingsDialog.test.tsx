@@ -155,6 +155,22 @@ describe("AiSettingsDialog", () => {
     expect(await screen.findByText("文本仍然连接正常")).toBeVisible();
   });
 
+  it("clears an old loading error when a provider operation starts", async () => {
+    let finishSave: ((value: PublicAiSettings) => void) | undefined;
+    getAiSettings.mockRejectedValue(new Error("AI 设置服务未启动"));
+    saveAiSettings.mockReturnValue(new Promise<PublicAiSettings>((resolve) => { finishSave = resolve; }));
+    render(<AiSettingsDialog onClose={vi.fn()} />);
+    expect(await screen.findByText("AI 设置服务未启动")).toBeVisible();
+
+    fireEvent.change(screen.getByLabelText("文本 Base URL"), { target: { value: "https://text.example/v1" } });
+    fireEvent.change(screen.getByLabelText("文本模型名称"), { target: { value: "gpt-5" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存文本设置" }));
+
+    expect(screen.queryByText("AI 设置服务未启动")).not.toBeInTheDocument();
+    finishSave?.(settings);
+    expect(await screen.findByText("文本设置已安全保存")).toBeVisible();
+  });
+
   it("clears only the selected provider key", async () => {
     clearAiKey.mockResolvedValue({
       text: { ...settings.text, hasKey: false, keyMask: null },
@@ -217,5 +233,42 @@ describe("AiSettingsDialog", () => {
     expect(launcher).toHaveFocus();
     expect(container).not.toHaveAttribute("aria-hidden");
     expect(container).not.toHaveAttribute("inert");
+  });
+
+  it("preserves modal focus and background isolation across parent rerenders", async () => {
+    const closedRevisions: number[] = [];
+    const RerenderHarness = ({ revision }: { revision: number }) => {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>打开可重渲染设置</button>
+          {open && (
+            <AiSettingsDialog
+              onClose={() => {
+                closedRevisions.push(revision);
+                setOpen(false);
+              }}
+            />
+          )}
+        </>
+      );
+    };
+    const { container, rerender } = render(<RerenderHarness revision={1} />);
+    const launcher = screen.getByRole("button", { name: "打开可重渲染设置" });
+    launcher.focus();
+    fireEvent.click(launcher);
+    const textUrl = await screen.findByLabelText("文本 Base URL");
+    textUrl.focus();
+    expect(textUrl).toHaveFocus();
+    expect(container).toHaveAttribute("inert");
+
+    rerender(<RerenderHarness revision={2} />);
+
+    expect(textUrl).toHaveFocus();
+    expect(container).toHaveAttribute("aria-hidden", "true");
+    expect(container).toHaveAttribute("inert");
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(closedRevisions).toEqual([2]);
+    expect(launcher).toHaveFocus();
   });
 });
