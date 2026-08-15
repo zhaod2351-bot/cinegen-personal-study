@@ -33,6 +33,7 @@ describe("StageDirector storyboard jobs", () => {
 
   it("opens shot organization controls and explains unavailable video generation", async () => {
     render(<StageDirector project={project} updateProject={vi.fn()} />);
+    expect(screen.getByText(/时长偏好：60s（仅参考）/)).toHaveTextContent("AI 当前估算总时长：5 秒");
     fireEvent.click(screen.getByRole("button", { name: "整理镜头" }));
     expect(screen.getByRole("dialog", { name: "整理镜头" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "完成" }));

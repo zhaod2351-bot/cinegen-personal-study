@@ -16,6 +16,9 @@ describe("buildDirectorPlanPrompt", () => {
     expect(prompt).toContain("日漫赛璐璐");
     expect(prompt).toContain("末世、悬疑");
     expect(prompt).toContain("type + id");
+    expect(prompt).toContain("用户时长偏好（仅供参考，不要求凑满）：60s");
+    expect(prompt).toContain("实际总时长可以短于或长于用户时长偏好");
+    expect(prompt).not.toContain("用较长的单镜头覆盖目标时长");
     expect(prompt).toContain("只能输出 JSON");
   });
 });

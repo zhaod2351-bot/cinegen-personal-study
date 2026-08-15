@@ -173,7 +173,7 @@ const StageScript: React.FC<Props> = ({ project, updateProject, onOpenAssets }) 
             <Info label="作品名称" value={project.title} />
             <Info label="艺术风格" value={project.artStyle || "未设置"} />
             <Info label="作品标签" value={(project.styleTags || []).join("、") || "未设置"} />
-            <Info label="画幅 / 时长" value={`${project.aspectRatio || "16:9"} · ${project.targetDuration || "60s"}`} />
+            <Info label="画幅 / 时长偏好" value={`${project.aspectRatio || "16:9"} · ${project.targetDuration || "60s"}（AI 按剧情估算实际时长）`} />
             <div className="mt-8 rounded-lg border border-[#e3d6c5] bg-white p-4 text-xs leading-6 text-[#837467]">
               <Lock className="mb-2 h-4 w-4 text-[#c4510a]" />
               AI 将先润色剧本，再输出人物、场景、道具、剪辑和镜头。确认后作为资产库与导演台的数据源。

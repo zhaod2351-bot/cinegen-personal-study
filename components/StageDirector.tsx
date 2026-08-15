@@ -17,6 +17,7 @@ const StageDirector: React.FC<Props> = ({ project, updateProject, initialShotId 
   const [notice, setNotice] = useState("");
   const resumedJob = useRef<string | null>(null);
   const activeClip = clips.find((clip) => clip.id === activeClipId) || clips[0];
+  const totalDuration = clips.reduce((total, clip) => total + clip.shots.reduce((clipTotal, shot) => clipTotal + shot.duration, 0), 0);
   const versions = project.storyboardVersions.filter((version) => version.clipId === activeClip?.id);
   const selectedVersion = versions.find((version) => version.id === selectedVersionId) || versions.at(-1);
 
@@ -116,7 +117,7 @@ const StageDirector: React.FC<Props> = ({ project, updateProject, initialShotId 
   };
 
   return <section className="flex h-full flex-col bg-[#fffaf3] text-[#2d251f]">
-    <header className="flex h-[94px] shrink-0 items-center justify-between border-b border-[#ded5c8] px-8"><div><h1 className="text-2xl font-semibold">导演工作室</h1><p className="mt-2 text-xs text-[#8b7b6e]">当前生产来源：已锁定剧本 · {activeClip.title}</p></div><button onClick={() => setOrganizing(true)} className="flex items-center gap-2 rounded-md border border-[#d9cdbc] bg-white px-4 py-2 text-sm"><Layers3 size={16}/>整理镜头</button></header>
+    <header className="flex h-[94px] shrink-0 items-center justify-between border-b border-[#ded5c8] px-8"><div><h1 className="text-2xl font-semibold">导演工作室</h1><p className="mt-2 text-xs text-[#8b7b6e]">当前生产来源：已锁定剧本 · {activeClip.title}</p><p className="mt-1 text-xs text-[#a45118]">时长偏好：{project.targetDuration || "未设置"}（仅参考） · AI 当前估算总时长：{formatDirectorDuration(totalDuration)} · 可逐镜头编辑</p></div><button onClick={() => setOrganizing(true)} className="flex items-center gap-2 rounded-md border border-[#d9cdbc] bg-white px-4 py-2 text-sm"><Layers3 size={16}/>整理镜头</button></header>
     {generation.status !== "idle" && <div role="status" className={`border-b px-8 py-2 text-sm ${generation.status === "failed" ? "border-red-200 bg-red-50 text-red-700" : "border-[#ead8bd] bg-[#fff1d7] text-[#8a4a18]"}`}>{generation.status === "running" && <LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" />}{generation.status === "running" ? `故事板生成中 ${generation.progress}%` : generation.status === "completed" ? "生成完成" : generation.error}{generation.status === "failed" && <button onClick={generate} className="ml-4 underline">重试</button>}</div>}
     <div className="grid min-h-0 flex-1 grid-cols-[280px_minmax(430px,1fr)_minmax(390px,42%)]">
       <aside className="border-r border-[#ded5c8]"><ColumnTitle title="剪辑列表" count={clips.length}/><div className="p-3">{clips.map((clip, index) => <button key={clip.id} onClick={() => { setActiveClipId(clip.id); setEditingShotId(null); }} className={`mb-2 flex w-full items-center gap-4 rounded-lg border p-4 text-left ${clip.id === activeClip.id ? "border-[#e9b58f] bg-white" : "border-transparent"}`}><span className="rounded bg-[#f4e9d7] px-2 py-1 text-sm">{index + 1}</span><span><b className="block">Clip {String(index + 1).padStart(2, "0")}</b><small className="text-[#8c7c6f]">{clip.summary}</small></span></button>)}</div></aside>
@@ -129,6 +130,14 @@ const StageDirector: React.FC<Props> = ({ project, updateProject, initialShotId 
 };
 
 const ColumnTitle = ({ title, count }: { title: string; count: number }) => <header className="flex h-[54px] items-center justify-between border-b border-[#ded5c8] px-5"><b>{title}</b><em className="rounded bg-[#f5ecdd] px-2 py-1 text-xs not-italic">{count}</em></header>;
+
+export function formatDirectorDuration(seconds: number): string {
+  const rounded = Math.round(seconds * 10) / 10;
+  if (rounded < 60) return `${rounded} 秒`;
+  const minutes = Math.floor(rounded / 60);
+  const remainder = Math.round((rounded - minutes * 60) * 10) / 10;
+  return remainder ? `${minutes} 分 ${remainder} 秒` : `${minutes} 分钟`;
+}
 
 function buildAssets(project: ProjectState, clip: DirectorClip): DirectorAsset[] {
   const selected = new Set(clip.shots.flatMap((shot) => shot.assets.map((asset) => `${asset.type}:${asset.id}`)));
