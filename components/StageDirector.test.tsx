@@ -68,6 +68,30 @@ describe("StageDirector storyboard jobs", () => {
     }));
   });
 
+  it("shows and edits the shot title and audio items", () => {
+    const updateProject = vi.fn();
+    const audioProject: ProjectState = {
+      ...project,
+      directorClips: [{
+        ...project.directorClips[0],
+        shots: [{ ...project.directorClips[0].shots[0], audioItems: [{ type: "对白", speaker: "小狐狸", content: "快跑！" }] }],
+      }],
+    };
+    render(<StageDirector project={audioProject} updateProject={updateProject} />);
+
+    expect(screen.getByText("小狐狸：快跑！")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "编辑" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "镜头标题" }), { target: { value: "越过废墟" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "音频内容 1" }), { target: { value: "跟紧我！" } });
+
+    expect(updateProject).toHaveBeenCalledWith(expect.objectContaining({
+      directorClips: [expect.objectContaining({ shots: [expect.objectContaining({ title: "越过废墟" })] })],
+    }));
+    expect(updateProject).toHaveBeenCalledWith(expect.objectContaining({
+      directorClips: [expect.objectContaining({ shots: [expect.objectContaining({ audioItems: [expect.objectContaining({ content: "跟紧我！" })] })] })],
+    }));
+  });
+
   it("opens the clip containing the linked asset shot", () => {
     const secondClip = { ...project.directorClips[0], id: "clip-2", title: "第二段", shots: [{ ...project.directorClips[0].shots[0], id: "shot-2", title: "目标镜头" }] };
     render(<StageDirector project={{ ...project, directorClips: [...project.directorClips, secondClip] }} updateProject={vi.fn()} initialShotId="shot-2" />);
