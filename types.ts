@@ -16,6 +16,8 @@ export interface Character {
   personality: string;
   visualPrompt?: string;
   referenceImage?: string; // Base URL
+  imageAspectRatio?: ImageAspectRatio;
+  imageResolution?: ImageResolution;
   tags?: string[];
   variations: CharacterVariation[]; // Added: List of alternative looks
   fieldProvenance?: AssetFieldProvenance;
@@ -31,6 +33,8 @@ export interface Scene {
   palette?: string;
   visualPrompt?: string;
   referenceImage?: string; // URL
+  imageAspectRatio?: ImageAspectRatio;
+  imageResolution?: ImageResolution;
   tags?: string[];
   fieldProvenance?: AssetFieldProvenance;
 }
@@ -41,9 +45,14 @@ export interface PropAsset {
   description: string;
   visualPrompt?: string;
   referenceImage?: string;
+  imageAspectRatio?: ImageAspectRatio;
+  imageResolution?: ImageResolution;
   tags?: string[];
   fieldProvenance?: AssetFieldProvenance;
 }
+
+export type ImageAspectRatio = "1:1" | "3:2" | "2:3" | "16:9" | "9:16";
+export type ImageResolution = "1K" | "2K" | "4K";
 
 export interface Keyframe {
   id: string;

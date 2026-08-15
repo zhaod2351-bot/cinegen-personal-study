@@ -2,7 +2,7 @@ import OpenAI, { toFile } from "openai";
 import { describe, expect, it, vi } from "vitest";
 import type { RuntimeAiSettings } from "./settings/types";
 import type { DirectorPlanInput, StoryboardInput } from "./types";
-import { downloadGeneratedImage, OpenAIGateway, parseProviderJson } from "./openaiGateway";
+import { downloadGeneratedImage, OpenAIGateway, parseProviderJson, resolveImageSize } from "./openaiGateway";
 
 const settings: RuntimeAiSettings = {
   text: {
@@ -16,6 +16,14 @@ const settings: RuntimeAiSettings = {
     model: "gpt-image-2",
   },
 };
+
+describe("image output size", () => {
+  it("maps per-image ratio and 2K/4K resolution to relay dimensions", () => {
+    expect(resolveImageSize("16:9", "2K")).toBe("2048x1152");
+    expect(resolveImageSize("9:16", "4K")).toBe("2304x4096");
+    expect(resolveImageSize("1:1", "4K")).toBe("4096x4096");
+  });
+});
 
 const directorInput: DirectorPlanInput = {
   lockedScript: "小狐狸跑进废墟。",

@@ -30,6 +30,12 @@ const asset = z.object({
   description: z.string().min(1),
   tags: z.array(z.string().min(1).max(100)).max(20).optional(),
   referenceImages: z.array(referenceImage).max(maxReferenceImagesPerStoryboard).optional(),
+  sceneContinuity: z.object({
+    time: z.string().min(1),
+    weather: z.string().min(1),
+    lighting: z.string().min(1),
+    palette: z.string().min(1),
+  }).optional(),
 });
 const audioItem = z.object({
   type: z.enum(["对白", "旁白", "音效", "环境音", "音乐"]),
@@ -70,6 +76,7 @@ const storyboardInput = z.object({
   artStyle: z.string().min(1),
   tags: z.array(z.string().min(1).max(100)).max(20),
   aspectRatio: z.string().min(1),
+  imageResolution: z.enum(["1K", "2K", "4K"]).optional(),
   version: z.number().int().positive(),
 }).superRefine((value, context) => {
   const references = value.assets.flatMap((item) => item.referenceImages ?? []);

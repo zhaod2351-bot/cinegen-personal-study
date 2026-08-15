@@ -77,5 +77,6 @@ export interface StoryboardInput {
   artStyle: string;
   tags: string[];
   aspectRatio: string;
+  imageResolution?: "1K" | "2K" | "4K";
   version: number;
 }

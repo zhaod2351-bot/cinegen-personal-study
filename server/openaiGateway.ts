@@ -127,11 +127,7 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
       const client = this.createClient({ apiKey: provider.apiKey, baseURL: provider.baseUrl, maxRetries: 0 });
       const prompt = isAssetReferenceInput(input) ? buildAssetReferencePrompt(input) : buildStoryboardPrompt(input);
       const references = await buildReferenceUploads(input);
-      const size = isAssetReferenceInput(input) && input.assets[0]?.type === "character"
-        ? "1024x1536"
-        : isAssetReferenceInput(input) && input.assets[0]?.type === "prop"
-          ? "1024x1024"
-          : "1536x1024";
+      const size = resolveImageSize(input.aspectRatio, input.imageResolution || "1K");
       const response = references.length > 0
         ? await client.images.edit({
           image: references,
@@ -165,6 +161,17 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
       throw sanitizedProviderError("Image", error);
     }
   }
+}
+
+export function resolveImageSize(aspectRatio: string, resolution: "1K" | "2K" | "4K"): string {
+  const sizes: Record<string, Record<"1K" | "2K" | "4K", string>> = {
+    "1:1": { "1K": "1024x1024", "2K": "2048x2048", "4K": "4096x4096" },
+    "3:2": { "1K": "1536x1024", "2K": "2048x1365", "4K": "4096x2731" },
+    "2:3": { "1K": "1024x1536", "2K": "1365x2048", "4K": "2731x4096" },
+    "16:9": { "1K": "1536x1024", "2K": "2048x1152", "4K": "4096x2304" },
+    "9:16": { "1K": "1024x1536", "2K": "1152x2048", "4K": "2304x4096" },
+  };
+  return sizes[aspectRatio]?.[resolution] || sizes["16:9"][resolution];
 }
 
 export function parseProviderJson(content: string): unknown {

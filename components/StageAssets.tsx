@@ -120,6 +120,8 @@ const StageAssets: React.FC<Props> = ({
             : (shot.props || []).includes(selected.id),
       );
   const tags = selected?.tags || [];
+  const imageAspectRatio = selected?.imageAspectRatio || (isCharacter ? "2:3" : isScene ? "16:9" : "1:1");
+  const imageResolution = selected?.imageResolution || "1K";
   const selectedGenerating = selected ? generatingAssets.has(assetTaskKey(kind, selected.id)) : false;
 
   const notify = (message: string) => {
@@ -356,7 +358,8 @@ const StageAssets: React.FC<Props> = ({
         assets: [asset],
         artStyle: project.artStyle || "日漫赛璐路",
         tags: project.styleTags || [],
-        aspectRatio: project.aspectRatio || "16:9",
+        aspectRatio: imageAspectRatio,
+        imageResolution,
         version: 1,
       });
       const job = { jobId: created.jobId, kind, assetId: selected.id, assetName: name };
@@ -583,6 +586,27 @@ const StageAssets: React.FC<Props> = ({
                       onChange={onUpload}
                     />
                   </div>
+                  <div className="mt-3 grid grid-cols-2 gap-3 rounded-md border border-[#e2d6c6] bg-[#fffaf2] p-3">
+                    <label className="text-xs text-[#7b6c5e]">
+                      <span className="mb-1 block">图片比例</span>
+                      <select aria-label="图片比例" className="w-full rounded border border-[#d8cbbb] bg-white px-2 py-2 text-sm text-[#30251d]" value={imageAspectRatio} onChange={(event) => save({ imageAspectRatio: event.target.value })}>
+                        <option value="1:1">1:1 方形</option>
+                        <option value="3:2">3:2 横版</option>
+                        <option value="2:3">2:3 竖版</option>
+                        <option value="16:9">16:9 宽屏</option>
+                        <option value="9:16">9:16 竖屏</option>
+                      </select>
+                    </label>
+                    <label className="text-xs text-[#7b6c5e]">
+                      <span className="mb-1 block">生成分辨率</span>
+                      <select aria-label="生成分辨率" className="w-full rounded border border-[#d8cbbb] bg-white px-2 py-2 text-sm text-[#30251d]" value={imageResolution} onChange={(event) => save({ imageResolution: event.target.value })}>
+                        <option value="1K">1K（快速 / 省费用）</option>
+                        <option value="2K">2K（高清）</option>
+                        <option value="4K">4K（超清 / 费用较高）</option>
+                      </select>
+                    </label>
+                    <p className="col-span-2 !m-0 text-xs text-[#9a6a45]">当前生成规格：{imageAspectRatio} · {imageResolution} · {imagePixelDimensions(imageAspectRatio, imageResolution)}。分辨率越高，生成时间和中转站费用通常越高。</p>
+                  </div>
                   <h3>
                     <Sparkles size={16} />
                     视觉参考
@@ -782,6 +806,17 @@ const SCENE_CONTINUITY_OPTIONS = {
   lighting: ["左前方暖色斜射光", "右前方暖色斜射光", "顶部正午硬光", "阴天柔和漫射光", "冷色月光", "室内暖色人工光", "逆光剪影"],
   palette: ["冷灰废墟、低饱和青绿、暖金高光", "暖黄与土褐、低饱和", "冷蓝灰、青色阴影", "橙红夕照、深蓝阴影", "黑灰与暗红、低明度", "雪白、冷蓝与淡灰"],
 } as const;
+
+function imagePixelDimensions(aspectRatio: string, resolution: string): string {
+  const dimensions: Record<string, Record<string, string>> = {
+    "1:1": { "1K": "1024×1024", "2K": "2048×2048", "4K": "4096×4096" },
+    "3:2": { "1K": "1536×1024", "2K": "2048×1365", "4K": "4096×2731" },
+    "2:3": { "1K": "1024×1536", "2K": "1365×2048", "4K": "2731×4096" },
+    "16:9": { "1K": "1536×1024", "2K": "2048×1152", "4K": "4096×2304" },
+    "9:16": { "1K": "1024×1536", "2K": "1152×2048", "4K": "2304×4096" },
+  };
+  return dimensions[aspectRatio]?.[resolution] || "由中转站决定";
+}
 
 function SceneContinuityFields({ scene, editing, save }: { scene: Scene; editing: boolean; save: (changes: Record<string, unknown>) => void }) {
   const rows = [

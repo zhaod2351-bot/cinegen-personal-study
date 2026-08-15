@@ -54,6 +54,25 @@ describe("StageAssets image generation", () => {
     await waitFor(() => expect(localApiFetch).toHaveBeenCalledWith("/api/jobs/image-job-1/image"));
   });
 
+  it("saves per-asset aspect ratio and sends the selected resolution", async () => {
+    const updateProject = vi.fn();
+    render(<StageAssets project={project} updateProject={updateProject} />);
+    fireEvent.change(screen.getByRole("combobox", { name: "图片比例" }), { target: { value: "9:16" } });
+    expect(updateProject).toHaveBeenCalledWith(expect.objectContaining({
+      scriptData: expect.objectContaining({ characters: [expect.objectContaining({ imageAspectRatio: "9:16" })] }),
+    }));
+
+    const configured = structuredClone(project) as unknown as { scriptData: { characters: Array<Record<string, unknown>> } };
+    Object.assign(configured.scriptData.characters[0], { imageAspectRatio: "9:16", imageResolution: "4K" });
+    cleanup();
+    render(<StageAssets project={configured as never} updateProject={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "重新生成" }));
+    await waitFor(() => expect(createStoryboardJob).toHaveBeenCalledWith(expect.objectContaining({
+      aspectRatio: "9:16",
+      imageResolution: "4K",
+    })));
+  });
+
   it("removes only the selected reference image after confirmation", () => {
     const withImage = structuredClone(project) as typeof project;
     (withImage as never as { scriptData: { characters: Array<{ referenceImage?: string }> } }).scriptData.characters[0].referenceImage = "data:image/png;base64,aW1hZ2U=";
