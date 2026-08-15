@@ -108,18 +108,46 @@ describe("AiSettingsStore", () => {
     await expect(store.update({ image: { baseUrl: "https://image.example/v1", model: "   " } })).rejects.toThrow("model");
   });
 
-  it("leaves the persisted settings untouched when decryption fails", async () => {
+  it("keeps one failed ciphertext unavailable while preserving the other provider", async () => {
     const { filePath, store } = await createStore();
     await store.update({ text: { baseUrl: "https://persisted.example/v1", model: "persisted-model" } });
     const before = await readFile(filePath, "utf8");
     const failingProtector = new ReversibleProtector();
-    failingProtector.unprotect = async () => {
-      throw new Error("cannot decrypt");
+    failingProtector.unprotect = async (value) => {
+      const plaintext = Buffer.from(value, "base64url").toString("utf8");
+      if (plaintext.includes("text")) throw new Error("cannot decrypt text key");
+      return plaintext;
     };
     const restarted = new AiSettingsStore({ filePath, protector: failingProtector, defaults });
 
-    await expect(restarted.getRuntimeSettings()).rejects.toThrow("cannot decrypt");
+    expect(await restarted.getPublicSettings()).toEqual({
+      text: {
+        baseUrl: "https://persisted.example/v1",
+        model: "persisted-model",
+        hasKey: false,
+        keyMask: null,
+        keyStatus: "unavailable",
+      },
+      image: {
+        baseUrl: "https://image.example/v1",
+        model: "gpt-image-2",
+        hasKey: true,
+        keyMask: "im-****cdef",
+      },
+    });
     expect(await readFile(filePath, "utf8")).toBe(before);
+
+    await restarted.update({ image: { baseUrl: "https://image-next.example/v1", model: "image-next" } });
+    const preserved = JSON.parse(await readFile(filePath, "utf8")) as { text: { protectedKey: string } };
+    const original = JSON.parse(before) as { text: { protectedKey: string } };
+    expect(preserved.text.protectedKey).toBe(original.text.protectedKey);
+
+    await restarted.update({ text: { baseUrl: "https://text-next.example/v1", model: "text-next", apiKey: "new-text-key" } });
+    expect((await restarted.getRuntimeSettings()).text).toMatchObject({
+      baseUrl: "https://text-next.example/v1",
+      model: "text-next",
+      apiKey: "new-text-key",
+    });
   });
 
   it("keeps concurrent text and image updates", async () => {

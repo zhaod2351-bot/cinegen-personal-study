@@ -65,6 +65,24 @@ export class JobRunner {
     return retried;
   }
 
+  async reconcilePersistedJobs(): Promise<void> {
+    const jobs = await this.options.store.list();
+    await Promise.all(jobs.filter((job) => job.status === "in_progress").map((job) =>
+      this.options.store.update(job.id, {
+        status: "failed",
+        errorCode: "JOB_INTERRUPTED",
+        error: "本地服务重启，无法确认原任务状态，请重试",
+      }),
+    ));
+    for (const job of jobs.filter((candidate) => candidate.status === "queued")) {
+      if (job.kind === "director-plan") {
+        this.start(job.id, () => this.executeDirectorPlan(job.id, job.payload as DirectorPlanInput));
+      } else {
+        this.start(job.id, () => this.executeStoryboard(job.id, job.payload as StoryboardInput));
+      }
+    }
+  }
+
   private start(id: string, work: () => Promise<void>): void {
     const promise = work().finally(() => this.active.delete(id));
     this.active.set(id, promise);
@@ -73,7 +91,8 @@ export class JobRunner {
   private async executeDirectorPlan(id: string, input: DirectorPlanInput): Promise<void> {
     await this.options.store.update(id, { status: "in_progress", progress: 15 });
     try {
-      const raw = await this.withTransientRetries(() => this.options.gateway.createDirectorPlan(input));
+      const gateway = await this.captureGateway();
+      const raw = await this.withTransientRetries(() => gateway.createDirectorPlan(input));
       const plan = validateDirectorPlan(raw);
       await this.options.store.update<DirectorPlanInput, DirectorPlan>(id, {
         status: "completed",
@@ -94,10 +113,11 @@ export class JobRunner {
     await this.options.store.update(id, { status: "in_progress", progress: 10 });
     let attempts = 0;
     try {
+      const gateway = await this.captureGateway();
       const generated = await this.withTransientRetries(async () => {
         attempts += 1;
         await this.options.store.update(id, { progress: 20 + attempts * 15 });
-        return this.options.gateway.generateStoryboard(input);
+        return gateway.generateStoryboard(input);
       });
       await this.options.store.update(id, { progress: 85 });
       const archived = await archiveStoryboard({
@@ -139,6 +159,10 @@ export class JobRunner {
       }
     }
     throw new Error("unreachable retry state");
+  }
+
+  private captureGateway(): Promise<AiGateway> {
+    return this.options.gateway.captureSnapshot?.() ?? Promise.resolve(this.options.gateway);
   }
 
   private isTransient(error: unknown): boolean {

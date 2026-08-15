@@ -31,4 +31,16 @@ describe("JobStore", () => {
     expect(retried.status).toBe("queued");
     expect((await store.get(failed.id))?.status).toBe("failed");
   });
+
+  it("creates a retry attempt only from a failed job", async () => {
+    const root = await mkdtemp(join(tmpdir(), "cinegen-job-retry-"));
+    const store = new JobStore(root);
+    const queued = await store.create("director-plan", { script: "locked" });
+
+    await expect(store.retry(queued.id)).rejects.toMatchObject({ status: 409 });
+    await store.update(queued.id, { status: "failed", error: "provider failed" });
+    const retried = await store.retry(queued.id);
+
+    expect(retried).toMatchObject({ attempt: 2, retriedFrom: queued.id, status: "queued" });
+  });
 });

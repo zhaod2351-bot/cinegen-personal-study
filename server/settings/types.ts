@@ -9,6 +9,7 @@ export interface PublicProviderSettings {
   model: string;
   hasKey: boolean;
   keyMask: string | null;
+  keyStatus?: "unavailable";
 }
 
 export interface RuntimeProviderSettings {

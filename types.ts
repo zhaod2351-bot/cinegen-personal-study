@@ -5,6 +5,9 @@ export interface CharacterVariation {
   referenceImage?: string;
 }
 
+export type AssetFieldSource = "manual" | "ai" | "legacy";
+export type AssetFieldProvenance = Record<string, AssetFieldSource>;
+
 export interface Character {
   id: string;
   name: string;
@@ -15,6 +18,7 @@ export interface Character {
   referenceImage?: string; // Base URL
   tags?: string[];
   variations: CharacterVariation[]; // Added: List of alternative looks
+  fieldProvenance?: AssetFieldProvenance;
 }
 
 export interface Scene {
@@ -25,6 +29,7 @@ export interface Scene {
   visualPrompt?: string;
   referenceImage?: string; // URL
   tags?: string[];
+  fieldProvenance?: AssetFieldProvenance;
 }
 
 export interface PropAsset {
@@ -34,6 +39,7 @@ export interface PropAsset {
   visualPrompt?: string;
   referenceImage?: string;
   tags?: string[];
+  fieldProvenance?: AssetFieldProvenance;
 }
 
 export interface Keyframe {

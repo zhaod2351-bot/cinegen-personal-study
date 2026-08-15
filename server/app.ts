@@ -203,6 +203,13 @@ export function createApp(deps: AppDependencies): Express {
     if (error instanceof ZodError) {
       return response.status(400).json({ error: "请求数据不完整", details: error.issues });
     }
+    const httpError = error as { status?: unknown; code?: unknown; message?: unknown };
+    if (typeof httpError.status === "number" && httpError.status >= 400 && httpError.status < 500) {
+      return response.status(httpError.status).json({
+        ...(typeof httpError.code === "string" ? { code: httpError.code } : {}),
+        error: typeof httpError.message === "string" ? httpError.message : "请求失败",
+      });
+    }
     const message = error instanceof Error ? error.message : "未知服务器错误";
     return response.status(500).json({ error: message });
   });

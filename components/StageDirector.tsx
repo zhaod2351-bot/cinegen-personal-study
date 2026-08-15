@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Clapperboard, Image as ImageIcon, Layers3, LoaderCircle, Pencil, Play, Sparkles } from "lucide-react";
 import type { DirectorAsset, DirectorClip, DirectorShot } from "../server/types";
-import { createStoryboardJob, pollAiJob } from "../services/aiApiService";
+import { createStoryboardJob, pollAiJob, retryAiJob } from "../services/aiApiService";
 import type { ProjectState, StoryboardVersion } from "../types";
 
 interface Props { project: ProjectState; updateProject: (updates: Partial<ProjectState>) => void; }
@@ -12,9 +12,36 @@ const StageDirector: React.FC<Props> = ({ project, updateProject }) => {
   const [editingShotId, setEditingShotId] = useState<string | null>(null);
   const [selectedVersionId, setSelectedVersionId] = useState("");
   const [generation, setGeneration] = useState<{ status: "idle" | "running" | "completed" | "failed"; progress: number; error?: string }>({ status: "idle", progress: 0 });
+  const resumedJob = useRef<string | null>(null);
   const activeClip = clips.find((clip) => clip.id === activeClipId) || clips[0];
   const versions = project.storyboardVersions.filter((version) => version.clipId === activeClip?.id);
   const selectedVersion = versions.find((version) => version.id === selectedVersionId) || versions.at(-1);
+
+  const monitorJob = async (jobId: string, clip: DirectorClip) => {
+    setGeneration({ status: "running", progress: 5 });
+    const complete = await pollAiJob<{ imagePath: string; metadataPath: string; version: number }>(jobId, {
+      onProgress: (snapshot) => {
+        setGeneration({ status: "running", progress: snapshot.progress });
+        updateProject({ activeAiJobs: { ...project.activeAiJobs, [`storyboard:${clip.id}`]: { jobId, kind: "storyboard", status: snapshot.status, progress: snapshot.progress, error: snapshot.error } } });
+      },
+    });
+    if (complete.status === "failed" || !complete.result) throw new Error(complete.error || "故事板生成失败");
+    const stored: StoryboardVersion = { id: `board-${jobId}`, clipId: clip.id, version: complete.result.version, jobId, status: "completed", imagePath: complete.result.imagePath, imageUrl: `/api/jobs/${jobId}/image`, metadataPath: complete.result.metadataPath, createdAt: Date.now() };
+    const { [`storyboard:${clip.id}`]: _finished, ...remainingJobs } = project.activeAiJobs;
+    updateProject({ storyboardVersions: [...project.storyboardVersions, stored], activeAiJobs: remainingJobs });
+    setSelectedVersionId(stored.id);
+    setGeneration({ status: "completed", progress: 100 });
+  };
+
+  useEffect(() => {
+    if (!activeClip) return;
+    const persisted = project.activeAiJobs[`storyboard:${activeClip.id}`];
+    if (!persisted || resumedJob.current === persisted.jobId) return;
+    resumedJob.current = persisted.jobId;
+    void monitorJob(persisted.jobId, activeClip).catch((cause) => {
+      setGeneration({ status: "failed", progress: persisted.progress, error: cause instanceof Error ? cause.message : "故事板生成失败" });
+    });
+  }, [project.id, activeClip?.id]);
 
   if (!activeClip) return <div className="grid h-full place-items-center bg-[#fffaf3] text-[#86786d]">请先通过 AI 剧本分析或导入式剧本生成镜头。</div>;
 
@@ -27,7 +54,8 @@ const StageDirector: React.FC<Props> = ({ project, updateProject }) => {
     const version = Math.max(0, ...versions.map((item) => item.version)) + 1;
     setGeneration({ status: "running", progress: 5 });
     try {
-      const created = await createStoryboardJob({
+      const persisted = project.activeAiJobs[`storyboard:${activeClip.id}`];
+      const created = persisted?.status === "failed" ? await retryAiJob(persisted.jobId) : await createStoryboardJob({
         projectId: project.id,
         projectTitle: project.title,
         sceneName: activeClip.title || `场次 ${activeClip.id}`,
@@ -39,16 +67,11 @@ const StageDirector: React.FC<Props> = ({ project, updateProject }) => {
         version,
       });
       updateProject({ activeAiJobs: { ...project.activeAiJobs, [`storyboard:${activeClip.id}`]: { jobId: created.jobId, kind: "storyboard", status: created.status, progress: 0 } } });
-      const complete = await pollAiJob<{ imagePath: string; metadataPath: string; version: number }>(created.jobId);
-      if (complete.status === "failed" || !complete.result) throw new Error(complete.error || "故事板生成失败");
-      const stored: StoryboardVersion = { id: `board-${created.jobId}`, clipId: activeClip.id, version: complete.result.version, jobId: created.jobId, status: "completed", imagePath: complete.result.imagePath, imageUrl: `/api/jobs/${created.jobId}/image`, metadataPath: complete.result.metadataPath, createdAt: Date.now() };
-      updateProject({ storyboardVersions: [...project.storyboardVersions, stored], activeAiJobs: {} });
-      setSelectedVersionId(stored.id);
-      setGeneration({ status: "completed", progress: 100 });
+      await monitorJob(created.jobId, activeClip);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "故事板生成失败";
       const failedVersion: StoryboardVersion = { id: `board-failed-${Date.now()}`, clipId: activeClip.id, version, status: "failed", error: message, createdAt: Date.now() };
-      updateProject({ storyboardVersions: [...project.storyboardVersions, failedVersion], activeAiJobs: {} });
+      updateProject({ storyboardVersions: [...project.storyboardVersions, failedVersion] });
       setGeneration({ status: "failed", progress: 0, error: message });
     }
   };

@@ -131,4 +131,21 @@ describe("JobRunner", () => {
     expect((await store.get(job.id))?.status).toBe("failed");
     expect(gateway.failures).toBe(3);
   });
+
+  it("resumes queued jobs by id and marks uncertain in-progress jobs interrupted", async () => {
+    const gateway = new FakeGateway();
+    const { store, runner } = await setup(gateway);
+    const queued = await store.create("director-plan", directorInput);
+    const interrupted = await store.create("director-plan", directorInput);
+    await store.update(interrupted.id, { status: "in_progress", progress: 55 });
+
+    await (runner as JobRunner & { reconcilePersistedJobs?: () => Promise<void> }).reconcilePersistedJobs?.();
+    await runner.waitFor(queued.id);
+
+    expect((await store.get(queued.id))?.status).toBe("completed");
+    expect(await store.get(interrupted.id)).toMatchObject({
+      status: "failed",
+      errorCode: "JOB_INTERRUPTED",
+    });
+  });
 });

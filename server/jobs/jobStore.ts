@@ -14,6 +14,7 @@ export interface AiJob<TPayload = unknown, TResult = unknown> {
   payload: TPayload;
   result?: TResult;
   error?: string;
+  errorCode?: string;
   createdAt: string;
   updatedAt: string;
   retriedFrom?: string;
@@ -67,10 +68,20 @@ export class JobStore {
     return jobs.find((job) => job.id === id) as AiJob<TPayload, TResult> | undefined;
   }
 
+  async list(): Promise<AiJob[]> {
+    return this.readAll();
+  }
+
   async retry<TPayload = unknown>(id: string): Promise<AiJob<TPayload>> {
     return this.withWrite(async (jobs) => {
       const original = jobs.find((job) => job.id === id);
       if (!original) throw new Error(`Job not found: ${id}`);
+      if (original.status !== "failed") {
+        throw Object.assign(new Error("只能重试失败的生成任务"), {
+          status: 409,
+          code: "JOB_NOT_RETRYABLE",
+        });
+      }
       const now = new Date().toISOString();
       const retried: AiJob<TPayload> = {
         id: randomUUID(),

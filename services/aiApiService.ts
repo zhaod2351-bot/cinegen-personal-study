@@ -20,7 +20,7 @@ interface CreatedJob {
 
 export interface AiHealth {
   ok: boolean;
-  models: { text: string; image: "gpt-image-2" };
+  models: { text: string; image: string };
   archiveRoot?: string;
 }
 
@@ -46,7 +46,7 @@ export async function retryAiJob(id: string): Promise<CreatedJob> {
 
 export async function pollAiJob<TResult = DirectorPlan>(
   id: string,
-  options: { intervalMs?: number; maxIntervalMs?: number; signal?: AbortSignal } = {},
+  options: { intervalMs?: number; maxIntervalMs?: number; signal?: AbortSignal; onProgress?: (job: AiJobSnapshot<TResult>) => void } = {},
 ): Promise<AiJobSnapshot<TResult>> {
   const baseInterval = Math.max(0, options.intervalMs ?? 1200);
   const maxInterval = Math.max(baseInterval, options.maxIntervalMs ?? 4000);
@@ -55,6 +55,7 @@ export async function pollAiJob<TResult = DirectorPlan>(
   while (true) {
     throwIfAborted(options.signal);
     const job = await getAiJob<TResult>(id, options.signal);
+    options.onProgress?.(job);
     if (job.status === "completed" || job.status === "failed") return job;
     await wait(interval, options.signal);
     interval = Math.min(maxInterval, Math.max(baseInterval, interval * 1.25));

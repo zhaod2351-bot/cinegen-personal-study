@@ -65,6 +65,7 @@ function toPublicProviderSettings(settings: RuntimeProviderSettings): PublicProv
 
 export class AiSettingsStore {
   private settings: RuntimeAiSettings | undefined;
+  private readonly unavailableKeys: Partial<Record<ProviderKind, string>> = {};
   private changeQueue: Promise<void> = Promise.resolve();
 
   constructor(
@@ -78,8 +79,8 @@ export class AiSettingsStore {
   async getPublicSettings(): Promise<PublicAiSettings> {
     const settings = await this.load();
     return {
-      text: toPublicProviderSettings(settings.text),
-      image: toPublicProviderSettings(settings.image),
+      text: { ...toPublicProviderSettings(settings.text), ...(this.unavailableKeys.text ? { keyStatus: "unavailable" as const } : {}) },
+      image: { ...toPublicProviderSettings(settings.image), ...(this.unavailableKeys.image ? { keyStatus: "unavailable" as const } : {}) },
     };
   }
 
@@ -98,6 +99,8 @@ export class AiSettingsStore {
         text: this.mergeProvider(current.text, input.text),
         image: this.mergeProvider(current.image, input.image),
       };
+      if (input.text && "apiKey" in input.text) delete this.unavailableKeys.text;
+      if (input.image && "apiKey" in input.image) delete this.unavailableKeys.image;
       await this.save(next);
       this.settings = next;
       return this.getPublicSettings();
@@ -112,6 +115,7 @@ export class AiSettingsStore {
         image: { ...current.image },
       };
       delete next[kind].apiKey;
+      delete this.unavailableKeys[kind];
       await this.save(next);
       this.settings = next;
       return this.getPublicSettings();
@@ -151,16 +155,21 @@ export class AiSettingsStore {
 
     const stored = JSON.parse(serialized) as StoredAiSettings;
     if (stored.version !== 1) throw new Error("unsupported AI settings version");
-    const text = await this.unprotectProvider(stored.text);
-    const image = await this.unprotectProvider(stored.image);
+    const text = await this.unprotectProvider("text", stored.text);
+    const image = await this.unprotectProvider("image", stored.image);
     this.settings = { text, image };
     return this.settings;
   }
 
-  private async unprotectProvider(stored: StoredProviderSettings): Promise<RuntimeProviderSettings> {
-    const apiKey = stored.protectedKey === undefined
-      ? undefined
-      : await this.options.protector.unprotect(stored.protectedKey);
+  private async unprotectProvider(kind: ProviderKind, stored: StoredProviderSettings): Promise<RuntimeProviderSettings> {
+    let apiKey: string | undefined;
+    if (stored.protectedKey !== undefined) {
+      try {
+        apiKey = await this.options.protector.unprotect(stored.protectedKey);
+      } catch {
+        this.unavailableKeys[kind] = stored.protectedKey;
+      }
+    }
     return this.validateRuntimeSettings({
       text: { baseUrl: stored.baseUrl, model: stored.model, apiKey },
       image: { baseUrl: stored.baseUrl, model: stored.model, apiKey },
@@ -177,8 +186,8 @@ export class AiSettingsStore {
   private async save(settings: RuntimeAiSettings): Promise<void> {
     const stored: StoredAiSettings = {
       version: 1,
-      text: await this.protectProvider(settings.text),
-      image: await this.protectProvider(settings.image),
+      text: await this.protectProvider("text", settings.text),
+      image: await this.protectProvider("image", settings.image),
     };
     await mkdir(dirname(this.options.filePath), { recursive: true });
     const temporaryPath = `${this.options.filePath}.${randomUUID()}.tmp`;
@@ -186,9 +195,9 @@ export class AiSettingsStore {
     await rename(temporaryPath, this.options.filePath);
   }
 
-  private async protectProvider(settings: RuntimeProviderSettings): Promise<StoredProviderSettings> {
+  private async protectProvider(kind: ProviderKind, settings: RuntimeProviderSettings): Promise<StoredProviderSettings> {
     const protectedKey = settings.apiKey === undefined
-      ? undefined
+      ? this.unavailableKeys[kind]
       : await this.options.protector.protect(settings.apiKey);
     return protectedKey === undefined
       ? { baseUrl: settings.baseUrl, model: settings.model }

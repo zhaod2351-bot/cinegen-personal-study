@@ -43,7 +43,7 @@ npm install
 npm run dev:local
 ```
 
-浏览器打开 `http://localhost:5173`，在左下角或顶部的“系统设置”打开 AI 设置中心：
+浏览器打开 `http://localhost:3000`，在左下角或顶部的“系统设置”打开 AI 设置中心：
 
 1. 分别填写文本模型和图片生成模型的 Base URL、模型名以及对应 API Key。
 2. 可先使用“测试连接”；临时输入的 Key 只用于本次测试，不会因此保存。

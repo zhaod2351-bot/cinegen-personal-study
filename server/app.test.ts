@@ -76,7 +76,7 @@ async function settingsApiFixture(options: {
     archiveRoot: join(root, "archive"),
     sessionToken: localSessionToken,
   });
-  return { app, archiveRoot: join(root, "archive"), connectionTester, settingsStore };
+  return { app, archiveRoot: join(root, "archive"), connectionTester, settingsStore, store };
 }
 
 async function fixtureApp() {
@@ -404,6 +404,16 @@ describe("local AI API", () => {
     const created = await request(app).post("/api/storyboards").send(storyboard).expect(202);
     expect(created.body.status).toBe("queued");
     await request(app).get(`/api/jobs/${created.body.jobId}`).expect(200);
+  });
+
+  it("rejects retry requests for a job that has not failed", async () => {
+    const { app, store } = await settingsApiFixture();
+    const queued = await store.create("director-plan", directorPlan);
+
+    await request(app).post(`/api/jobs/${queued.id}/retry`).expect(409, {
+      code: "JOB_NOT_RETRYABLE",
+      error: "只能重试失败的生成任务",
+    });
   });
 
   it("validates and preserves bounded asset reference images in the job payload", async () => {

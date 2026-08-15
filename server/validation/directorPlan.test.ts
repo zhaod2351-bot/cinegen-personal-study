@@ -53,7 +53,7 @@ describe("validateDirectorPlan", () => {
     expect(() => validateDirectorPlan(broken)).toThrow(/missing/);
   });
 
-  it("allows the same display name in different asset categories", () => {
+  it("rejects the same display name across asset categories", () => {
     const duplicateNames = structuredClone(validPlan);
     duplicateNames.assets.push({
       id: "prop-su",
@@ -63,7 +63,17 @@ describe("validateDirectorPlan", () => {
     });
     duplicateNames.clips[0].shots[1].assets.push({ type: "prop", id: "prop-su" });
 
-    expect(validateDirectorPlan(duplicateNames).assets).toHaveLength(4);
+    expect(() => validateDirectorPlan(duplicateNames)).toThrow(/duplicate asset name/);
+  });
+
+  it("rejects duplicate clip and shot ids", () => {
+    const duplicateClip = structuredClone(validPlan);
+    duplicateClip.clips.push({ ...structuredClone(validPlan.clips[0]), title: "第二段" });
+    expect(() => validateDirectorPlan(duplicateClip)).toThrow(/duplicate clip id/);
+
+    const duplicateShot = structuredClone(validPlan);
+    duplicateShot.clips[0].shots[1].id = duplicateShot.clips[0].shots[0].id;
+    expect(() => validateDirectorPlan(duplicateShot)).toThrow(/duplicate shot id/);
   });
 
   it("rejects duplicate type and id pairs", () => {

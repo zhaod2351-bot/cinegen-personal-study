@@ -15,6 +15,12 @@ describe("loadServerConfig", () => {
     });
   });
 
+  it("treats the empty keys copied from .env.example as omitted", () => {
+    expect(loadServerConfig({ OPENAI_TEXT_API_KEY: "", OPENAI_IMAGE_API_KEY: "   " }).aiDefaults).toEqual(
+      loadServerConfig({}).aiDefaults,
+    );
+  });
+
   it("maps independent text and image environment defaults", () => {
     const config = loadServerConfig({
       OPENAI_TEXT_API_KEY: "text-key",

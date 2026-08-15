@@ -109,7 +109,7 @@ describe("AiSettingsDialog", () => {
     expect(screen.getByLabelText("图片 API Key")).toHaveValue("");
   });
 
-  it("tests the current provider form and retains its password after a failed request", async () => {
+  it("tests the current provider form and clears its password after every request", async () => {
     let failTextTest: ((reason: Error) => void) | undefined;
     testAiConnection
       .mockReturnValueOnce(new Promise((_, reject) => { failTextTest = reject; }))
@@ -123,7 +123,7 @@ describe("AiSettingsDialog", () => {
     expect(screen.getByRole("button", { name: "测试图片连接" })).toBeEnabled();
     failTextTest?.(new Error("认证失败，请检查密钥"));
     expect(await screen.findByText("认证失败，请检查密钥")).toBeVisible();
-    expect(screen.getByLabelText("文本 API Key")).toHaveValue("bad-text-key");
+    expect(screen.getByLabelText("文本 API Key")).toHaveValue("");
     expect(testAiConnection).toHaveBeenNthCalledWith(1, "text", {
       baseUrl: "https://text.example/v1",
       model: "gpt-5",

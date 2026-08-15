@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { AlertCircle, BookOpen, CheckCircle2, LoaderCircle, Lock, Sparkles, X } from "lucide-react";
 import type { DirectorPlan } from "../server/types";
-import { createDirectorPlanJob, pollAiJob } from "../services/aiApiService";
+import { createDirectorPlanJob, pollAiJob, retryAiJob } from "../services/aiApiService";
 import type { Character, ProjectState, PropAsset, Scene, ScriptData, Shot } from "../types";
 
 interface Props {
@@ -18,8 +18,36 @@ const StageScript: React.FC<Props> = ({ project, updateProject }) => {
   const [status, setStatus] = useState<"idle" | "running" | "failed">("idle");
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
+  const resumedJob = useRef<string | null>(null);
 
   useEffect(() => setScript(project.rawScript), [project.id, project.rawScript]);
+
+  const monitorJob = async (jobId: string) => {
+    setStatus("running");
+    const complete = await pollAiJob<DirectorPlan>(jobId, {
+      onProgress: (snapshot) => {
+        setProgress(snapshot.progress);
+        updateProject({ activeAiJobs: { ...project.activeAiJobs, directorPlan: { jobId, kind: "director-plan", status: snapshot.status, progress: snapshot.progress, error: snapshot.error } } });
+      },
+    });
+    setProgress(complete.progress);
+    if (complete.status === "failed" || !complete.result) throw new Error(complete.error || "AI 没有返回可用的剧本方案");
+    setPreview(complete.result);
+    setStatus("idle");
+    const { directorPlan: _finished, ...remainingJobs } = project.activeAiJobs;
+    updateProject({ isParsingScript: false, activeAiJobs: remainingJobs });
+  };
+
+  useEffect(() => {
+    const persisted = project.activeAiJobs.directorPlan;
+    if (!persisted || resumedJob.current === persisted.jobId) return;
+    resumedJob.current = persisted.jobId;
+    void monitorJob(persisted.jobId).catch((cause) => {
+      setStatus("failed");
+      setError(cause instanceof Error ? cause.message : "AI 剧本分析失败");
+      updateProject({ isParsingScript: false });
+    });
+  }, [project.id]);
 
   const analyze = async () => {
     if (!script.trim()) {
@@ -31,7 +59,8 @@ const StageScript: React.FC<Props> = ({ project, updateProject }) => {
     setProgress(5);
     updateProject({ rawScript: script, isParsingScript: true });
     try {
-      const created = await createDirectorPlanJob({
+      const persisted = project.activeAiJobs.directorPlan;
+      const created = persisted?.status === "failed" ? await retryAiJob(persisted.jobId) : await createDirectorPlanJob({
         lockedScript: script,
         artStyle: project.artStyle || "日漫赛璐路",
         tags: project.styleTags || [],
@@ -45,12 +74,7 @@ const StageScript: React.FC<Props> = ({ project, updateProject }) => {
           directorPlan: { jobId: created.jobId, kind: "director-plan", status: created.status, progress: 0 },
         },
       });
-      const complete = await pollAiJob<DirectorPlan>(created.jobId);
-      setProgress(complete.progress);
-      if (complete.status === "failed" || !complete.result) throw new Error(complete.error || "AI 没有返回可用的剧本方案");
-      setPreview(complete.result);
-      setStatus("idle");
-      updateProject({ isParsingScript: false });
+      await monitorJob(created.jobId);
     } catch (cause) {
       setStatus("failed");
       setError(cause instanceof Error ? cause.message : "AI 剧本分析失败");
@@ -66,7 +90,7 @@ const StageScript: React.FC<Props> = ({ project, updateProject }) => {
       rawScript: preview.polishedScript,
       directorClips: preview.clips,
       isParsingScript: false,
-      activeAiJobs: {},
+      activeAiJobs: project.activeAiJobs,
     });
     setScript(preview.polishedScript);
     setPreview(null);
@@ -174,15 +198,15 @@ export function convertDirectorPlan(project: ProjectState, plan: DirectorPlan): 
   const oldProps = project.scriptData?.props || [];
   const characters: Character[] = plan.assets.filter((asset) => asset.type === "character").map((asset) => {
     const old = oldCharacters.find((item) => item.id === asset.id || item.name === asset.name);
-    return { id: asset.id, name: asset.name, gender: old?.gender || "未知", age: old?.age || "未知", personality: asset.description, visualPrompt: asset.description, referenceImage: old?.referenceImage, tags: asset.tags || old?.tags, variations: old?.variations || [] };
+    return { id: asset.id, name: old?.name || asset.name, gender: old?.gender || "未知", age: old?.age || "未知", personality: aiField(old, "personality", asset.description), visualPrompt: aiField(old, "visualPrompt", asset.description), referenceImage: old?.referenceImage, tags: aiField(old, "tags", asset.tags || []), variations: old?.variations || [], fieldProvenance: provenance(old, ["personality", "visualPrompt", "tags"]) };
   });
   const scenes: Scene[] = plan.assets.filter((asset) => asset.type === "scene").map((asset) => {
     const old = oldScenes.find((item) => item.id === asset.id || item.location === asset.name);
-    return { id: asset.id, location: asset.name, time: old?.time || "未知", atmosphere: asset.description, visualPrompt: asset.description, referenceImage: old?.referenceImage, tags: asset.tags || old?.tags };
+    return { id: asset.id, location: old?.location || asset.name, time: old?.time || "未知", atmosphere: aiField(old, "atmosphere", asset.description), visualPrompt: aiField(old, "visualPrompt", asset.description), referenceImage: old?.referenceImage, tags: aiField(old, "tags", asset.tags || []), fieldProvenance: provenance(old, ["atmosphere", "visualPrompt", "tags"]) };
   });
   const props: PropAsset[] = plan.assets.filter((asset) => asset.type === "prop").map((asset) => {
     const old = oldProps.find((item) => item.id === asset.id || item.name === asset.name);
-    return { id: asset.id, name: asset.name, description: asset.description, visualPrompt: asset.description, referenceImage: old?.referenceImage, tags: asset.tags || old?.tags };
+    return { id: asset.id, name: old?.name || asset.name, description: aiField(old, "description", asset.description), visualPrompt: aiField(old, "visualPrompt", asset.description), referenceImage: old?.referenceImage, tags: aiField(old, "tags", asset.tags || []), fieldProvenance: provenance(old, ["description", "visualPrompt", "tags"]) };
   });
   const shots: Shot[] = plan.clips.flatMap((clip) => clip.shots.map((shot) => ({
     id: shot.id,
@@ -197,6 +221,16 @@ export function convertDirectorPlan(project: ProjectState, plan: DirectorPlan): 
   })));
   const scriptData: ScriptData = { title: project.title, genre: [project.artStyle, ...(project.styleTags || [])].filter(Boolean).join(" · "), logline: plan.summary, targetDuration: project.targetDuration, language: project.language, characters, scenes, props, storyParagraphs: plan.clips.map((clip, index) => ({ id: index + 1, text: clip.summary, sceneRefId: clip.shots[0]?.assets.find((asset) => asset.type === "scene")?.id || scenes[0]?.id || "" })) };
   return { scriptData, shots, title: project.title };
+}
+
+function aiField<T extends object, K extends keyof T>(old: T | undefined, key: K, generated: T[K]): T[K] {
+  if (!old) return generated;
+  const source = (old as T & { fieldProvenance?: Record<string, string> }).fieldProvenance?.[String(key)];
+  return source === "ai" ? generated : old[key];
+}
+
+function provenance<T extends { fieldProvenance?: Record<string, "manual" | "ai" | "legacy"> }>(old: T | undefined, fields: string[]) {
+  return Object.fromEntries(fields.map((field) => [field, old ? old.fieldProvenance?.[field] || "legacy" : "ai"]));
 }
 
 export default StageScript;

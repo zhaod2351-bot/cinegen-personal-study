@@ -7,9 +7,11 @@ import StageDirector from "./StageDirector";
 
 const createStoryboardJob = vi.fn();
 const pollAiJob = vi.fn();
+const retryAiJob = vi.fn();
 vi.mock("../services/aiApiService", () => ({
   createStoryboardJob: (...args: unknown[]) => createStoryboardJob(...args),
   pollAiJob: (...args: unknown[]) => pollAiJob(...args),
+  retryAiJob: (...args: unknown[]) => retryAiJob(...args),
 }));
 
 const project: ProjectState = {
@@ -26,6 +28,7 @@ describe("StageDirector storyboard jobs", () => {
   beforeEach(() => {
     createStoryboardJob.mockReset().mockResolvedValue({ jobId: "job-1", status: "queued" });
     pollAiJob.mockReset().mockResolvedValue({ id: "job-1", status: "completed", progress: 100, result: { imagePath: "D:\\故事板.webp", metadataPath: "D:\\生成信息.json", version: 1 } });
+    retryAiJob.mockReset().mockResolvedValue({ jobId: "job-retry", status: "queued" });
   });
 
   it("creates a storyboard job for the active clip", async () => {
@@ -96,5 +99,42 @@ describe("StageDirector storyboard jobs", () => {
     fireEvent.click(screen.getByRole("button", { name: "生成新版本" }));
     expect(await screen.findByRole("option", { name: "v1" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "重试" })).toBeInTheDocument();
+  });
+
+  it("resumes a persisted storyboard job and removes only that active job on completion", async () => {
+    pollAiJob.mockResolvedValue({ id: "board-persisted", status: "completed", progress: 100, result: { imagePath: "D:\\v2.webp", metadataPath: "D:\\v2.json", version: 2 } });
+    const updateProject = vi.fn();
+    render(<StageDirector project={{
+      ...project,
+      activeAiJobs: {
+        directorPlan: { jobId: "director-other", kind: "director-plan", status: "in_progress", progress: 20 },
+        "storyboard:clip-1": { jobId: "board-persisted", kind: "storyboard", status: "queued", progress: 10 },
+      },
+    }} updateProject={updateProject} />);
+
+    expect(await screen.findByText("生成完成")).toBeInTheDocument();
+    expect(createStoryboardJob).not.toHaveBeenCalled();
+    expect(pollAiJob).toHaveBeenCalledWith("board-persisted", expect.objectContaining({ onProgress: expect.any(Function) }));
+    const completedUpdate = updateProject.mock.calls.map(([update]) => update).find((update) => update.storyboardVersions?.some((version: { jobId?: string }) => version.jobId === "board-persisted"));
+    expect(completedUpdate.activeAiJobs).toEqual({
+      directorPlan: { jobId: "director-other", kind: "director-plan", status: "in_progress", progress: 20 },
+    });
+  });
+
+  it("retries a persisted failed storyboard attempt through the retry API", async () => {
+    pollAiJob
+      .mockResolvedValueOnce({ id: "board-failed", status: "failed", progress: 40, error: "interrupted" })
+      .mockResolvedValueOnce({ id: "job-retry", status: "completed", progress: 100, result: { imagePath: "D:\\retry.webp", metadataPath: "D:\\retry.json", version: 2 } });
+    render(<StageDirector project={{
+      ...project,
+      activeAiJobs: {
+        "storyboard:clip-1": { jobId: "board-failed", kind: "storyboard", status: "failed", progress: 40, error: "interrupted" },
+      },
+    }} updateProject={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "重试" }));
+
+    await waitFor(() => expect(retryAiJob).toHaveBeenCalledWith("board-failed"));
+    expect(createStoryboardJob).not.toHaveBeenCalled();
   });
 });

@@ -44,6 +44,22 @@ describe("AI API client", () => {
     expect(fetchMock.mock.calls.filter(([input]) => input !== "/api/session")).toHaveLength(3);
   });
 
+  it("reports each persisted progress snapshot while polling", async () => {
+    const snapshots = [
+      { id: "job_progress", status: "queued", progress: 10 },
+      { id: "job_progress", status: "in_progress", progress: 55 },
+      { id: "job_progress", status: "completed", progress: 100, result: { ok: true } },
+    ];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => new Response(JSON.stringify(
+      input === "/api/session" ? { token: "progress-session" } : snapshots.shift(),
+    ), { status: 200 })));
+    const onProgress = vi.fn();
+
+    await pollAiJob("job_progress", { intervalMs: 0, onProgress });
+
+    expect(onProgress.mock.calls.map(([snapshot]) => snapshot.progress)).toEqual([10, 55, 100]);
+  });
+
   it("stops polling when aborted", async () => {
     vi.stubGlobal("fetch", vi.fn(async () =>
       new Response(JSON.stringify({ id: "job_1", status: "queued", progress: 0 })),

@@ -296,10 +296,13 @@ const AiSettingsDialog: React.FC<AiSettingsDialogProps> = ({ onClose }) => {
 
   const handleTest = (kind: ProviderKind) => runProviderAction(kind, "test", async () => {
     const input = kind === "text" ? textInput : imageInput;
-    const result = await testAiConnection(kind, input);
-    if (kind === "text") setTextInput((current) => ({ ...current, apiKey: "" }));
-    else setImageInput((current) => ({ ...current, apiKey: "" }));
-    setProviderMessages((current) => ({ ...current, [kind]: result.message }));
+    try {
+      const result = await testAiConnection(kind, input);
+      setProviderMessages((current) => ({ ...current, [kind]: result.message }));
+    } finally {
+      if (kind === "text") setTextInput((current) => ({ ...current, apiKey: "" }));
+      else setImageInput((current) => ({ ...current, apiKey: "" }));
+    }
   });
 
   const handleClear = (kind: ProviderKind) => runProviderAction(kind, "clear", async () => {

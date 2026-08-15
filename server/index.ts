@@ -5,16 +5,14 @@ import { loadServerConfig } from "./config";
 import { createAiRuntime } from "./runtime";
 
 const config = loadServerConfig(process.env);
+const localDataRoot = resolve(process.env.LOCALAPPDATA ?? ".cinegen-ai", "CineGen");
 const runtime = createAiRuntime({
-  settingsFilePath: resolve(
-    process.env.LOCALAPPDATA ?? ".cinegen-ai",
-    "CineGen",
-    "ai-settings.json",
-  ),
-  jobDirectory: resolve(".cinegen-ai", "jobs"),
+  settingsFilePath: resolve(localDataRoot, "ai-settings.json"),
+  jobDirectory: resolve(localDataRoot, "jobs"),
   archiveRoot: config.assetRoot,
   defaults: config.aiDefaults,
 });
+await runtime.runner.reconcilePersistedJobs();
 const app = createApp({
   store: runtime.jobStore,
   runner: runtime.runner,

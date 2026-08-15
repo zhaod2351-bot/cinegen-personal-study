@@ -2,8 +2,8 @@ import { z } from "zod";
 import type { RuntimeAiSettings } from "./settings/types";
 
 const schema = z.object({
-  OPENAI_TEXT_API_KEY: z.string().min(1).optional(),
-  OPENAI_IMAGE_API_KEY: z.string().min(1).optional(),
+  OPENAI_TEXT_API_KEY: z.preprocess((value) => typeof value === "string" && value.trim() === "" ? undefined : value, z.string().min(1).optional()),
+  OPENAI_IMAGE_API_KEY: z.preprocess((value) => typeof value === "string" && value.trim() === "" ? undefined : value, z.string().min(1).optional()),
   OPENAI_TEXT_BASE_URL: z.string().min(1).default("https://api.openai.com/v1"),
   OPENAI_IMAGE_BASE_URL: z.string().min(1).default("https://api.openai.com/v1"),
   OPENAI_TEXT_MODEL: z.string().min(1).default("gpt-5.6-terra"),

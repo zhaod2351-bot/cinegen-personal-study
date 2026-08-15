@@ -87,8 +87,8 @@ describe("createAiRuntime", () => {
     await runtime.runner.waitFor(second.id);
 
     expect(factoryInputs).toEqual([
-      { apiKey: "image-old-key", baseURL: "https://image-old.example/v1" },
-      { apiKey: "image-new-key", baseURL: "https://image-new.example/v1" },
+      { apiKey: "image-old-key", baseURL: "https://image-old.example/v1", maxRetries: 0 },
+      { apiKey: "image-new-key", baseURL: "https://image-new.example/v1", maxRetries: 0 },
     ]);
     expect(models).toEqual(["image-old", "image-new"]);
   });

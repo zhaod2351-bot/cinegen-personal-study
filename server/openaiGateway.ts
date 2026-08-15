@@ -9,6 +9,7 @@ import { DirectorPlanSchema } from "./validation/directorPlan";
 export interface AiGateway {
   createDirectorPlan(input: DirectorPlanInput): Promise<unknown>;
   generateStoryboard(input: StoryboardInput): Promise<{ image: Buffer; model: string }>;
+  captureSnapshot?(): Promise<AiGateway>;
 }
 
 export type AiConnectionSettings = Omit<RuntimeProviderSettings, "apiKey"> & { apiKey: string };
@@ -18,7 +19,7 @@ export interface AiConnectionTester {
   testImage(settings: AiConnectionSettings): Promise<void>;
 }
 
-export type OpenAIClientFactory = (options: { apiKey: string; baseURL: string }) => OpenAI;
+export type OpenAIClientFactory = (options: { apiKey: string; baseURL: string; maxRetries: 0 }) => OpenAI;
 
 function sanitizedProviderError(kind: "Text" | "Image", error: unknown): Error & { status?: number } {
   const sanitized = new Error(`${kind} provider request failed`) as Error & { status?: number };
@@ -33,9 +34,14 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
     private readonly createClient: OpenAIClientFactory = (options) => new OpenAI(options),
   ) {}
 
+  async captureSnapshot(): Promise<AiGateway> {
+    const snapshot = await this.getRuntimeSettings();
+    return new OpenAIGateway(async () => snapshot, this.createClient);
+  }
+
   async testText(settings: AiConnectionSettings): Promise<void> {
     try {
-      const client = this.createClient({ apiKey: settings.apiKey, baseURL: settings.baseUrl });
+      const client = this.createClient({ apiKey: settings.apiKey, baseURL: settings.baseUrl, maxRetries: 0 });
       await client.chat.completions.create({
         model: settings.model,
         stream: false,
@@ -48,7 +54,7 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
 
   async testImage(settings: AiConnectionSettings): Promise<void> {
     try {
-      const client = this.createClient({ apiKey: settings.apiKey, baseURL: settings.baseUrl });
+      const client = this.createClient({ apiKey: settings.apiKey, baseURL: settings.baseUrl, maxRetries: 0 });
       await client.images.generate({
         model: settings.model,
         prompt: "A plain white square.",
@@ -65,7 +71,7 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
     const provider = settings.text;
     if (!provider.apiKey) throw new Error("Text provider API key is not configured");
     try {
-      const client = this.createClient({ apiKey: provider.apiKey, baseURL: provider.baseUrl });
+      const client = this.createClient({ apiKey: provider.apiKey, baseURL: provider.baseUrl, maxRetries: 0 });
       const response = await client.chat.completions.create({
         model: provider.model,
         stream: false,
@@ -92,7 +98,7 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
     const provider = settings.image;
     if (!provider.apiKey) throw new Error("Image provider API key is not configured");
     try {
-      const client = this.createClient({ apiKey: provider.apiKey, baseURL: provider.baseUrl });
+      const client = this.createClient({ apiKey: provider.apiKey, baseURL: provider.baseUrl, maxRetries: 0 });
       const prompt = buildStoryboardPrompt(input);
       const references = await buildReferenceUploads(input);
       const response = references.length > 0

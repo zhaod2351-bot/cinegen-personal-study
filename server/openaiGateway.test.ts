@@ -80,6 +80,7 @@ describe("OpenAIGateway", () => {
     expect(factoryInputs).toEqual([{
       apiKey: "temporary-text-key",
       baseURL: "https://temporary-text.example/v1",
+      maxRetries: 0,
     }]);
     expect(completionInputs).toEqual([{
       model: "temporary-text-model",
@@ -112,6 +113,7 @@ describe("OpenAIGateway", () => {
     expect(factoryInputs).toEqual([{
       apiKey: "temporary-image-key",
       baseURL: "https://temporary-image.example/v1",
+      maxRetries: 0,
     }]);
     expect(generationInputs).toEqual([{
       model: "temporary-image-model",
@@ -187,6 +189,7 @@ describe("OpenAIGateway", () => {
     expect(factoryInputs).toEqual([{
       apiKey: "text-key",
       baseURL: "https://text.example/v1",
+      maxRetries: 0,
     }]);
     expect(completionInputs).toEqual([
       expect.objectContaining({ model: "text-model" }),
@@ -217,6 +220,7 @@ describe("OpenAIGateway", () => {
     expect(factoryInputs).toEqual([{
       apiKey: "image-key",
       baseURL: "https://image.example/v1",
+      maxRetries: 0,
     }]);
     expect(generationInputs).toEqual([
       expect.objectContaining({ model: "gpt-image-2" }),
