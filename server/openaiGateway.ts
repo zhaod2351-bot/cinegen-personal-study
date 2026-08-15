@@ -75,19 +75,11 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
     if (!provider.apiKey) throw new Error("Text provider API key is not configured");
     try {
       const client = this.createClient({ apiKey: provider.apiKey, baseURL: provider.baseUrl, maxRetries: 0 });
-      const response = await client.chat.completions.create({
+      const response = await createStructuredCompletion(client, {
         model: provider.model,
-        stream: false,
-        messages: [{ role: "user", content: buildDirectorPlanPrompt(input) }],
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "director_plan",
-            strict: true,
-            schema: z.toJSONSchema(DirectorPlanSchema),
-          },
-        },
-      } as Parameters<typeof client.chat.completions.create>[0]) as OpenAI.Chat.Completions.ChatCompletion;
+        prompt: buildDirectorPlanPrompt(input),
+        schemaName: "director_plan",
+      });
       const content = response.choices[0]?.message?.content;
       if (!content) throw new Error("OpenAI returned an empty director plan");
       return JSON.parse(content) as unknown;
@@ -102,18 +94,11 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
     if (!provider.apiKey) throw new Error("Text provider API key is not configured");
     try {
       const client = this.createClient({ apiKey: provider.apiKey, baseURL: provider.baseUrl, maxRetries: 0 });
-      const response = await client.chat.completions.create({
+      const response = await createStructuredCompletion(client, {
         model: provider.model,
-        stream: false,
-        messages: [{
-          role: "user",
-          content: `${buildDirectorPlanPrompt(input)}\n\n上一次输出未通过格式校验。只修复结构、重复 ID、重复素材名称和无效引用，不添加新剧情。上一次输出：\n${JSON.stringify(invalidOutput)}`,
-        }],
-        response_format: {
-          type: "json_schema",
-          json_schema: { name: "director_plan_repair", strict: true, schema: z.toJSONSchema(DirectorPlanSchema) },
-        },
-      } as Parameters<typeof client.chat.completions.create>[0]) as OpenAI.Chat.Completions.ChatCompletion;
+        prompt: `${buildDirectorPlanPrompt(input)}\n\n上一次输出未通过格式校验。只修复结构、重复 ID、重复素材名称和无效引用，不添加新剧情。上一次输出：\n${JSON.stringify(invalidOutput)}`,
+        schemaName: "director_plan_repair",
+      });
       const content = response.choices[0]?.message?.content;
       if (!content) throw new Error("OpenAI returned an empty repaired director plan");
       return JSON.parse(content) as unknown;
@@ -162,6 +147,37 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
     } catch (error) {
       throw sanitizedProviderError("Image", error);
     }
+  }
+}
+
+async function createStructuredCompletion(
+  client: OpenAI,
+  input: { model: string; prompt: string; schemaName: string },
+): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+  const common = {
+    model: input.model,
+    stream: false as const,
+    messages: [{ role: "user" as const, content: input.prompt }],
+  };
+  try {
+    return await client.chat.completions.create({
+      ...common,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: input.schemaName,
+          strict: true,
+          schema: z.toJSONSchema(DirectorPlanSchema),
+        },
+      },
+    } as Parameters<typeof client.chat.completions.create>[0]) as OpenAI.Chat.Completions.ChatCompletion;
+  } catch (error) {
+    const status = (error as { status?: unknown })?.status;
+    if (status !== 400 && status !== 404 && status !== 422) throw error;
+    return await client.chat.completions.create({
+      ...common,
+      response_format: { type: "json_object" },
+    } as Parameters<typeof client.chat.completions.create>[0]) as OpenAI.Chat.Completions.ChatCompletion;
   }
 }
 

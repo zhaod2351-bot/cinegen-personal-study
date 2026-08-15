@@ -196,6 +196,36 @@ describe("OpenAIGateway", () => {
     ]);
   });
 
+  it("falls back to JSON object mode when a compatible provider rejects JSON schema", async () => {
+    const completionInputs: Array<{ response_format?: { type?: string } }> = [];
+    const gateway = new OpenAIGateway(async () => settings, () => ({
+      chat: {
+        completions: {
+          create: async (request: { response_format?: { type?: string } }) => {
+            completionInputs.push(request);
+            if (request.response_format?.type === "json_schema") {
+              throw Object.assign(new Error("unsupported response_format"), { status: 400 });
+            }
+            return { choices: [{ message: { content: JSON.stringify({ summary: "fallback result" }) } }] };
+          },
+        },
+      },
+    } as unknown as OpenAI));
+
+    await expect(gateway.createDirectorPlan(directorInput)).resolves.toEqual({ summary: "fallback result" });
+    expect(completionInputs.map((request) => request.response_format?.type)).toEqual(["json_schema", "json_object"]);
+  });
+
+  it("does not retry authentication or network failures as a compatibility fallback", async () => {
+    const create = vi.fn(async () => {
+      throw Object.assign(new Error("unauthorized"), { status: 401 });
+    });
+    const gateway = new OpenAIGateway(async () => settings, () => ({ chat: { completions: { create } } } as unknown as OpenAI));
+
+    await expect(gateway.createDirectorPlan(directorInput)).rejects.toMatchObject({ message: "Text provider request failed", status: 401 });
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
   it("routes a storyboard through one image-provider snapshot and returns its model", async () => {
     const factoryInputs: Array<{ apiKey: string; baseURL: string }> = [];
     const generationInputs: unknown[] = [];
