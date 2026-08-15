@@ -714,19 +714,7 @@ const StageAssets: React.FC<Props> = ({
                           <p className="tag-row">
                             <label>标签</label>
                             {editing ? (
-                              <input
-                                aria-label="资产标签"
-                                value={tags.join("，")}
-                                onChange={(event) =>
-                                  save({
-                                    tags: event.target.value
-                                      .split(/[，,]/)
-                                      .map((tag) => tag.trim())
-                                      .filter(Boolean),
-                                  })
-                                }
-                                placeholder="用逗号分隔"
-                              />
+                              <TagEditor key={`${kind}:${selected.id}`} tags={tags} onSave={(nextTags) => save({ tags: nextTags })} />
                             ) : (
                               <span>
                                 {tags.length
@@ -836,6 +824,23 @@ function SceneContinuityFields({ scene, editing, save }: { scene: Scene; editing
       ) : <span>{value}</span>}
     </p>
   ))}</>;
+}
+
+function TagEditor({ tags, onSave }: { tags: string[]; onSave: (tags: string[]) => void }) {
+  const [draft, setDraft] = useState(tags.join("，"));
+  const commit = () => onSave(draft.split(/[，,]/).map((tag) => tag.trim()).filter(Boolean));
+  return (
+    <input
+      aria-label="资产标签"
+      value={draft}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") event.currentTarget.blur();
+      }}
+      placeholder="用逗号分隔"
+    />
+  );
 }
 
 export default StageAssets;
