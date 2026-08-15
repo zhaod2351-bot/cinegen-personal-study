@@ -1,4 +1,4 @@
-import type OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 import { describe, expect, it, vi } from "vitest";
 import type { RuntimeAiSettings } from "./settings/types";
 import type { DirectorPlanInput, StoryboardInput } from "./types";
@@ -221,6 +221,86 @@ describe("OpenAIGateway", () => {
     expect(generationInputs).toEqual([
       expect.objectContaining({ model: "gpt-image-2" }),
     ]);
+  });
+
+  it("sends selected asset references through the official image edit upload request", async () => {
+    const editInputs: Array<Record<string, unknown>> = [];
+    const referenceBytes = Buffer.from("reference-image-bytes");
+    const gateway = new OpenAIGateway(async () => settings, () => ({
+      images: {
+        edit: async (request: Record<string, unknown>) => {
+          editInputs.push(request);
+          return { data: [{ b64_json: Buffer.from("storyboard-with-reference").toString("base64") }] };
+        },
+      },
+    }) as unknown as OpenAI);
+
+    const result = await gateway.generateStoryboard({
+      ...storyboardInput,
+      clip: {
+        ...storyboardInput.clip,
+        shots: storyboardInput.clip.shots.map((shot) => ({
+          ...shot,
+          assets: [{ type: "character", id: "hero" }],
+        })),
+      },
+      assets: [{
+        id: "hero",
+        type: "character",
+        name: "主角",
+        description: "黑色短发",
+        referenceImages: [{ mimeType: "image/webp", data: referenceBytes.toString("base64") }],
+      }],
+    });
+
+    expect(result.image).toEqual(Buffer.from("storyboard-with-reference"));
+    expect(editInputs).toHaveLength(1);
+    expect(editInputs[0]).toMatchObject({
+      model: "gpt-image-2",
+      input_fidelity: "high",
+      image: expect.any(Array),
+    });
+    const [uploaded] = editInputs[0].image as Array<Blob & { name?: string }>;
+    expect(uploaded.type).toBe("image/webp");
+    expect(uploaded.name).toContain("hero");
+    expect(Buffer.from(await uploaded.arrayBuffer())).toEqual(referenceBytes);
+  });
+
+  it("serializes selected references as multipart image files through the real OpenAI SDK", async () => {
+    const requests: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
+    const referenceBytes = Buffer.from("real-sdk-reference");
+    const fakeFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push({ input, init });
+      return new Response(JSON.stringify({
+        created: 1,
+        data: [{ b64_json: Buffer.from("real-sdk-storyboard").toString("base64") }],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    };
+    const client = new OpenAI({
+      apiKey: "fake-image-key",
+      baseURL: "https://image.example/v1",
+      maxRetries: 0,
+      fetch: fakeFetch as typeof fetch,
+    });
+    const upload = await toFile(referenceBytes, "character-hero-1.png", { type: "image/png" });
+    await client.images.edit({
+      image: [upload],
+      model: "gpt-image-2",
+      prompt: "six-panel storyboard",
+      input_fidelity: "high",
+      size: "1536x1024",
+      output_format: "webp",
+      stream: false,
+    });
+
+    const editRequest = requests.find((request) => String(request.input).includes("/images/edits"));
+    expect(editRequest).toBeDefined();
+    expect(editRequest?.init?.body).toBeInstanceOf(FormData);
+    const form = editRequest?.init?.body as FormData;
+    const files = form.getAll("image[]") as File[];
+    expect(files).toHaveLength(1);
+    expect(files[0].type).toBe("image/png");
+    expect(Buffer.from(await files[0].arrayBuffer())).toEqual(referenceBytes);
   });
 
   it.each([

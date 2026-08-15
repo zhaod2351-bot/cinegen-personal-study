@@ -55,6 +55,7 @@ function storyboardFixture(root: string): StoryboardInput & { archiveRoot: strin
 
 class FakeGateway implements AiGateway {
   failures = 0;
+  readonly storyboardVersions: number[] = [];
 
   constructor(private readonly failCount = 0) {}
 
@@ -62,7 +63,8 @@ class FakeGateway implements AiGateway {
     return validPlan;
   }
 
-  async generateStoryboard(): Promise<{ image: Buffer; model: string }> {
+  async generateStoryboard(input: StoryboardInput): Promise<{ image: Buffer; model: string }> {
+    this.storyboardVersions.push(input.version);
     if (this.failures < this.failCount) {
       this.failures += 1;
       const error = new Error("temporary unavailable") as Error & { status: number };
@@ -103,6 +105,21 @@ describe("JobRunner", () => {
     expect(result.imagePath).toContain("故事板");
     const metadata = JSON.parse(await readFile(result.metadataPath, "utf8")) as { model: string };
     expect(metadata.model).toBe("runtime-image-model");
+  });
+
+  it("reserves distinct server-side versions before concurrent paid image calls", async () => {
+    const gateway = new FakeGateway();
+    const { root, store, runner } = await setup(gateway);
+    const input = storyboardFixture(join(root, "archive"));
+    const jobs = await Promise.all([
+      runner.runStoryboard({ ...input, version: 1 }),
+      runner.runStoryboard({ ...input, version: 1 }),
+    ]);
+    await Promise.all(jobs.map((job) => runner.waitFor(job.id)));
+
+    expect(gateway.storyboardVersions.sort()).toEqual([1, 2]);
+    const completed = await Promise.all(jobs.map((job) => store.get(job.id)));
+    expect(completed.map((job) => (job?.result as { version: number }).version).sort()).toEqual([1, 2]);
   });
 
   it("marks a third transient failure as failed", async () => {

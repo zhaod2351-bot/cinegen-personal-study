@@ -1,11 +1,19 @@
 export type AssetType = "character" | "scene" | "prop";
 
+export type ReferenceImageMimeType = "image/png" | "image/jpeg" | "image/webp";
+
+export interface DirectorReferenceImage {
+  mimeType: ReferenceImageMimeType;
+  data: string;
+}
+
 export interface DirectorAsset {
   id: string;
   type: AssetType;
   name: string;
   description: string;
   tags?: string[];
+  referenceImages?: DirectorReferenceImage[];
 }
 
 export interface DirectorAssetReference {

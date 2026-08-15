@@ -25,13 +25,57 @@ describe("StageDirector storyboard jobs", () => {
   afterEach(cleanup);
   beforeEach(() => {
     createStoryboardJob.mockReset().mockResolvedValue({ jobId: "job-1", status: "queued" });
-    pollAiJob.mockReset().mockResolvedValue({ id: "job-1", status: "completed", progress: 100, result: { imagePath: "D:\\故事板.webp", metadataPath: "D:\\生成信息.json" } });
+    pollAiJob.mockReset().mockResolvedValue({ id: "job-1", status: "completed", progress: 100, result: { imagePath: "D:\\故事板.webp", metadataPath: "D:\\生成信息.json", version: 1 } });
   });
 
   it("creates a storyboard job for the active clip", async () => {
     render(<StageDirector project={project} updateProject={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "生成新版本" }));
     await waitFor(() => expect(createStoryboardJob).toHaveBeenCalledWith(expect.objectContaining({ clip: expect.objectContaining({ id: "clip-1" }) })));
+  });
+
+  it("includes uploaded character, scene and prop references in the storyboard DTO", async () => {
+    const referencedProject: ProjectState = {
+      ...structuredClone(project),
+      directorClips: [{
+        ...structuredClone(project.directorClips[0]),
+        shots: [{
+          ...structuredClone(project.directorClips[0].shots[0]),
+          assets: [
+            ...structuredClone(project.directorClips[0].shots[0].assets),
+            { type: "prop", id: "map" },
+          ],
+        }],
+      }],
+      scriptData: {
+        ...structuredClone(project.scriptData!),
+        characters: [{
+          ...structuredClone(project.scriptData!.characters[0]),
+          referenceImage: "data:image/webp;base64,Y2hhcmFjdGVy",
+        }],
+        scenes: [{
+          ...structuredClone(project.scriptData!.scenes[0]),
+          referenceImage: "data:image/png;base64,c2NlbmU=",
+        }],
+        props: [{
+          id: "map",
+          name: "地图",
+          description: "旧地图",
+          referenceImage: "data:image/jpeg;base64,cHJvcA==",
+        }],
+      },
+    };
+    render(<StageDirector project={referencedProject} updateProject={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "生成新版本" }));
+
+    await waitFor(() => expect(createStoryboardJob).toHaveBeenCalled());
+    const submitted = createStoryboardJob.mock.calls[0][0] as { assets: Array<{ referenceImages?: unknown[] }> };
+    expect(submitted.assets.map((asset) => asset.referenceImages?.[0])).toEqual([
+      { mimeType: "image/webp", data: "Y2hhcmFjdGVy" },
+      { mimeType: "image/png", data: "c2NlbmU=" },
+      { mimeType: "image/jpeg", data: "cHJvcA==" },
+    ]);
   });
 
   it("shows completion and stores a completed version", async () => {

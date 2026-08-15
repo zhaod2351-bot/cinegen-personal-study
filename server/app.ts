@@ -13,6 +13,15 @@ import type { AiConnectionSettings, AiConnectionTester } from "./openaiGateway";
 import type { AiSettingsStore } from "./settings/aiSettingsStore";
 
 const assetType = z.enum(["character", "scene", "prop"]);
+const maxReferenceImageBytes = 4 * 1024 * 1024;
+const maxReferenceBytesPerStoryboard = 8 * 1024 * 1024;
+const maxReferenceImagesPerStoryboard = 8;
+const referenceImage = z.strictObject({
+  mimeType: z.enum(["image/png", "image/jpeg", "image/webp"]),
+  data: z.string()
+    .max(Math.ceil(maxReferenceImageBytes / 3) * 4)
+    .refine(isCanonicalBase64),
+}).refine((value) => decodedBase64Bytes(value.data) <= maxReferenceImageBytes);
 const assetReference = z.object({ type: assetType, id: z.string().min(1) });
 const asset = z.object({
   id: z.string().min(1),
@@ -20,6 +29,7 @@ const asset = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
   tags: z.array(z.string()).optional(),
+  referenceImages: z.array(referenceImage).max(maxReferenceImagesPerStoryboard).optional(),
 });
 const audioItem = z.object({
   type: z.enum(["对白", "旁白", "音效", "环境音", "音乐"]),
@@ -61,6 +71,15 @@ const storyboardInput = z.object({
   tags: z.array(z.string()),
   aspectRatio: z.string().min(1),
   version: z.number().int().positive(),
+}).superRefine((value, context) => {
+  const references = value.assets.flatMap((item) => item.referenceImages ?? []);
+  const totalBytes = references.reduce((sum, item) => sum + decodedBase64Bytes(item.data), 0);
+  if (references.length > maxReferenceImagesPerStoryboard) {
+    context.addIssue({ code: "custom", path: ["assets"], message: "too many reference images" });
+  }
+  if (totalBytes > maxReferenceBytesPerStoryboard) {
+    context.addIssue({ code: "custom", path: ["assets"], message: "reference images are too large" });
+  }
 });
 const providerSettingsInput = z.strictObject({
   baseUrl: z.string().trim().min(1).refine((value) => {
@@ -270,4 +289,14 @@ async function testConnection(
     ok: true,
     message: `${kind === "text" ? "文本" : "图片"}服务连接成功`,
   });
+}
+
+function isCanonicalBase64(value: string): boolean {
+  if (!value || value.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) return false;
+  return Buffer.from(value, "base64").toString("base64") === value;
+}
+
+function decodedBase64Bytes(value: string): number {
+  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  return Math.floor(value.length * 3 / 4) - padding;
 }

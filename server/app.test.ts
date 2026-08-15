@@ -406,6 +406,31 @@ describe("local AI API", () => {
     await request(app).get(`/api/jobs/${created.body.jobId}`).expect(200);
   });
 
+  it("validates and preserves bounded asset reference images in the job payload", async () => {
+    const app = await fixtureApp();
+    const referenceImages = [{ mimeType: "image/webp", data: Buffer.from("reference").toString("base64") }];
+    const created = await request(app).post("/api/storyboards").send({
+      ...storyboard,
+      assets: [{ ...storyboard.assets[0], referenceImages }],
+    }).expect(202);
+
+    const stored = await request(app).get(`/api/jobs/${created.body.jobId}`).expect(200);
+    expect(stored.body.payload.assets[0].referenceImages).toEqual(referenceImages);
+  });
+
+  it.each([
+    { referenceImages: [{ mimeType: "image/gif", data: "R0lGODlh" }], label: "unsupported MIME" },
+    { referenceImages: [{ mimeType: "image/png", data: "not-valid-base64%%%" }], label: "invalid base64" },
+    { referenceImages: Array.from({ length: 9 }, () => ({ mimeType: "image/png", data: "aW1hZ2U=" })), label: "too many references in one request" },
+    { referenceImages: [{ mimeType: "image/png", data: Buffer.alloc(4 * 1024 * 1024 + 1).toString("base64") }], label: "an oversized decoded image" },
+  ])("rejects $label reference images before creating a paid job", async ({ referenceImages }) => {
+    const app = await fixtureApp();
+    await request(app).post("/api/storyboards").send({
+      ...storyboard,
+      assets: [{ ...storyboard.assets[0], referenceImages }],
+    }).expect(400);
+  });
+
   it("returns 400 for malformed requests and 404 for unknown jobs", async () => {
     const app = await fixtureApp();
     await request(app).post("/api/storyboards").send({}).expect(400);

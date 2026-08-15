@@ -1,6 +1,12 @@
 import type { AiGateway } from "../openaiGateway";
 import type { DirectorPlan, DirectorPlanInput, StoryboardInput } from "../types";
-import { archiveStoryboard, type StoryboardArchiveResult } from "../storage/archive";
+import {
+  archiveStoryboard,
+  releaseStoryboardReservation,
+  reserveStoryboardVersion,
+  type StoryboardArchiveReservation,
+  type StoryboardArchiveResult,
+} from "../storage/archive";
 import { validateDirectorPlan } from "../validation/directorPlan";
 import type { AiJob } from "./jobStore";
 import { JobStore } from "./jobStore";
@@ -27,9 +33,20 @@ export class JobRunner {
   }
 
   async runStoryboard(input: StoryboardInput): Promise<AiJob<StoryboardInput>> {
-    const job = await this.options.store.create("storyboard", input);
-    this.start(job.id, () => this.executeStoryboard(job.id, input));
-    return job;
+    const reservation = await reserveStoryboardVersion({
+      root: this.options.archiveRoot,
+      projectTitle: input.projectTitle,
+      sceneName: input.sceneName,
+    });
+    const reservedInput = { ...input, version: reservation.version };
+    try {
+      const job = await this.options.store.create("storyboard", reservedInput);
+      this.start(job.id, () => this.executeStoryboard(job.id, reservedInput, reservation));
+      return job;
+    } catch (error) {
+      await releaseStoryboardReservation(reservation);
+      throw error;
+    }
   }
 
   async waitFor(id: string): Promise<void> {
@@ -69,7 +86,11 @@ export class JobRunner {
     }
   }
 
-  private async executeStoryboard(id: string, input: StoryboardInput): Promise<void> {
+  private async executeStoryboard(
+    id: string,
+    input: StoryboardInput,
+    reservation?: StoryboardArchiveReservation,
+  ): Promise<void> {
     await this.options.store.update(id, { status: "in_progress", progress: 10 });
     let attempts = 0;
     try {
@@ -94,7 +115,7 @@ export class JobRunner {
           shotIds: input.clip.shots.map((shot) => shot.id),
           attempts,
         },
-      });
+      }, reservation);
       await this.options.store.update<StoryboardInput, StoryboardArchiveResult>(id, {
         status: "completed",
         progress: 100,
@@ -103,6 +124,8 @@ export class JobRunner {
       });
     } catch (error) {
       await this.fail(id, error);
+    } finally {
+      await releaseStoryboardReservation(reservation);
     }
   }
 

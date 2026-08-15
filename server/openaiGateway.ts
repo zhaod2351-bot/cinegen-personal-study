@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 import { z } from "zod";
 import { buildDirectorPlanPrompt } from "./prompts/directorPlanPrompt";
 import { buildStoryboardPrompt } from "./prompts/storyboardPrompt";
@@ -93,15 +93,29 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
     if (!provider.apiKey) throw new Error("Image provider API key is not configured");
     try {
       const client = this.createClient({ apiKey: provider.apiKey, baseURL: provider.baseUrl });
-      const response = await client.images.generate({
-        model: provider.model,
-        stream: false,
-        prompt: buildStoryboardPrompt(input),
-        size: "1536x1024",
-        quality: "high",
-        output_format: "webp",
-        background: "opaque",
-      } as Parameters<typeof client.images.generate>[0]) as OpenAI.Images.ImagesResponse;
+      const prompt = buildStoryboardPrompt(input);
+      const references = await buildReferenceUploads(input);
+      const response = references.length > 0
+        ? await client.images.edit({
+          image: references,
+          model: provider.model,
+          stream: false,
+          prompt,
+          input_fidelity: "high",
+          size: "1536x1024",
+          quality: "high",
+          output_format: "webp",
+          background: "opaque",
+        } as Parameters<typeof client.images.edit>[0]) as OpenAI.Images.ImagesResponse
+        : await client.images.generate({
+          model: provider.model,
+          stream: false,
+          prompt,
+          size: "1536x1024",
+          quality: "high",
+          output_format: "webp",
+          background: "opaque",
+        } as Parameters<typeof client.images.generate>[0]) as OpenAI.Images.ImagesResponse;
       const first = response.data?.[0];
       if (first?.b64_json) {
         return { image: Buffer.from(first.b64_json, "base64"), model: provider.model };
@@ -116,4 +130,24 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
       throw sanitizedProviderError("Image", error);
     }
   }
+}
+
+async function buildReferenceUploads(input: StoryboardInput) {
+  const selected = new Set(input.clip.shots.flatMap((shot) => (
+    shot.assets.map((reference) => `${reference.type}:${reference.id}`)
+  )));
+  const uploads = [];
+  for (const asset of input.assets) {
+    if (!selected.has(`${asset.type}:${asset.id}`)) continue;
+    for (const [index, reference] of (asset.referenceImages ?? []).entries()) {
+      const extension = reference.mimeType === "image/jpeg" ? "jpg" : reference.mimeType.slice("image/".length);
+      const safeId = asset.id.replace(/[^A-Za-z0-9_-]/g, "_") || "asset";
+      uploads.push(await toFile(
+        Buffer.from(reference.data, "base64"),
+        `${asset.type}-${safeId}-${index + 1}.${extension}`,
+        { type: reference.mimeType },
+      ));
+    }
+  }
+  return uploads;
 }

@@ -32,16 +32,16 @@ const StageDirector: React.FC<Props> = ({ project, updateProject }) => {
         projectTitle: project.title,
         sceneName: activeClip.title || `场次 ${activeClip.id}`,
         clip: activeClip,
-        assets: buildAssets(project),
+        assets: buildAssets(project, activeClip),
         artStyle: project.artStyle || "日漫赛璐路",
         tags: project.styleTags || [],
         aspectRatio: project.aspectRatio || "16:9",
         version,
       });
       updateProject({ activeAiJobs: { ...project.activeAiJobs, [`storyboard:${activeClip.id}`]: { jobId: created.jobId, kind: "storyboard", status: created.status, progress: 0 } } });
-      const complete = await pollAiJob<{ imagePath: string; metadataPath: string }>(created.jobId);
+      const complete = await pollAiJob<{ imagePath: string; metadataPath: string; version: number }>(created.jobId);
       if (complete.status === "failed" || !complete.result) throw new Error(complete.error || "故事板生成失败");
-      const stored: StoryboardVersion = { id: `board-${created.jobId}`, clipId: activeClip.id, version, jobId: created.jobId, status: "completed", imagePath: complete.result.imagePath, imageUrl: `/api/jobs/${created.jobId}/image`, metadataPath: complete.result.metadataPath, createdAt: Date.now() };
+      const stored: StoryboardVersion = { id: `board-${created.jobId}`, clipId: activeClip.id, version: complete.result.version, jobId: created.jobId, status: "completed", imagePath: complete.result.imagePath, imageUrl: `/api/jobs/${created.jobId}/image`, metadataPath: complete.result.metadataPath, createdAt: Date.now() };
       updateProject({ storyboardVersions: [...project.storyboardVersions, stored], activeAiJobs: {} });
       setSelectedVersionId(stored.id);
       setGeneration({ status: "completed", progress: 100 });
@@ -66,12 +66,26 @@ const StageDirector: React.FC<Props> = ({ project, updateProject }) => {
 
 const ColumnTitle = ({ title, count }: { title: string; count: number }) => <header className="flex h-[54px] items-center justify-between border-b border-[#ded5c8] px-5"><b>{title}</b><em className="rounded bg-[#f5ecdd] px-2 py-1 text-xs not-italic">{count}</em></header>;
 
-function buildAssets(project: ProjectState): DirectorAsset[] {
+function buildAssets(project: ProjectState, clip: DirectorClip): DirectorAsset[] {
+  const selected = new Set(clip.shots.flatMap((shot) => shot.assets.map((asset) => `${asset.type}:${asset.id}`)));
   return [
-    ...(project.scriptData?.characters || []).map((item) => ({ id: item.id, type: "character" as const, name: item.name, description: item.visualPrompt || item.personality, tags: item.tags })),
-    ...(project.scriptData?.scenes || []).map((item) => ({ id: item.id, type: "scene" as const, name: item.location, description: item.visualPrompt || item.atmosphere, tags: item.tags })),
-    ...(project.scriptData?.props || []).map((item) => ({ id: item.id, type: "prop" as const, name: item.name, description: item.visualPrompt || item.description, tags: item.tags })),
-  ];
+    ...(project.scriptData?.characters || []).map((item) => withReference({ id: item.id, type: "character" as const, name: item.name, description: item.visualPrompt || item.personality, tags: item.tags }, item.referenceImage)),
+    ...(project.scriptData?.scenes || []).map((item) => withReference({ id: item.id, type: "scene" as const, name: item.location, description: item.visualPrompt || item.atmosphere, tags: item.tags }, item.referenceImage)),
+    ...(project.scriptData?.props || []).map((item) => withReference({ id: item.id, type: "prop" as const, name: item.name, description: item.visualPrompt || item.description, tags: item.tags }, item.referenceImage)),
+  ].filter((asset) => selected.has(`${asset.type}:${asset.id}`));
+}
+
+function withReference(asset: DirectorAsset, dataUrl: string | undefined): DirectorAsset {
+  if (!dataUrl) return asset;
+  const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl);
+  if (!match) return asset;
+  return {
+    ...asset,
+    referenceImages: [{
+      mimeType: match[1] as "image/png" | "image/jpeg" | "image/webp",
+      data: match[2],
+    }],
+  };
 }
 
 function assetName(project: ProjectState, type: string, id: string): string {

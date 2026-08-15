@@ -47,4 +47,46 @@ describe("buildStoryboardPrompt", () => {
   it("is deterministic for identical input", () => {
     expect(buildStoryboardPrompt(input)).toBe(buildStoryboardPrompt(structuredClone(input)));
   });
+
+  it("expands one shot into exactly six chronological panels", () => {
+    const prompt = buildStoryboardPrompt(withShotCount(1));
+
+    expect(prompt.match(/^PANEL \d+/gm)).toHaveLength(6);
+    expect(prompt).toContain("Transition beat");
+  });
+
+  it("keeps six supplied shots as exactly six panels", () => {
+    const prompt = buildStoryboardPrompt(withShotCount(6));
+
+    expect(prompt.match(/^PANEL \d+/gm)).toHaveLength(6);
+    expect(prompt).toContain("镜头 1");
+    expect(prompt).toContain("镜头 6");
+  });
+
+  it("selects six key frames from seven or more shots without mutating the clip", () => {
+    const source = withShotCount(9);
+    const original = structuredClone(source.clip);
+    const prompt = buildStoryboardPrompt(source);
+
+    expect(prompt.match(/^PANEL \d+/gm)).toHaveLength(6);
+    expect(prompt).toContain("镜头 1");
+    expect(prompt).toContain("镜头 9");
+    expect(source.clip).toEqual(original);
+  });
 });
+
+function withShotCount(count: number): StoryboardInput {
+  return {
+    ...structuredClone(input),
+    clip: {
+      ...structuredClone(input.clip),
+      shots: Array.from({ length: count }, (_, index) => ({
+        ...structuredClone(input.clip.shots[index % input.clip.shots.length]),
+        id: `shot-${index + 1}`,
+        title: `镜头 ${index + 1}`,
+        action: `第 ${index + 1} 个连续动作`,
+        visualPrompt: `visual prompt ${index + 1}`,
+      })),
+    },
+  };
+}
