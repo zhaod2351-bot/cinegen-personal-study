@@ -113,14 +113,12 @@ export class JobRunner {
       let plan: DirectorPlan;
       try {
         plan = validateDirectorPlan(raw);
-      } catch (validationError) {
-        if (!gateway.repairDirectorPlan) throw validationError;
-        const repaired = await gateway.repairDirectorPlan(input, raw);
-        try {
-          plan = validateDirectorPlan(repaired);
-        } catch {
-          throw new Error("AI 返回的导演计划结构不兼容，请更换模型或稍后重试");
-        }
+      } catch {
+        // A repair is another full, billable provider request. Some relays
+        // allow only one request per minute and low-balance accounts may be
+        // charged for the first response before rejecting the repair. Keep
+        // all follow-up spending under explicit user control.
+        throw new Error("AI 已返回结果，但格式不兼容；为避免重复扣费，系统未自动发起修复请求");
       }
       await this.options.store.update<DirectorPlanInput, DirectorPlan>(id, {
         status: "completed",

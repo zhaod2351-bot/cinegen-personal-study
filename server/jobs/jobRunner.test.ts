@@ -83,7 +83,7 @@ async function setup(gateway: AiGateway) {
 }
 
 describe("JobRunner", () => {
-  it("allows one controlled repair attempt for an invalid director plan", async () => {
+  it("does not automatically make a second billed request for an invalid director plan", async () => {
     let repairs = 0;
     const gateway: AiGateway = {
       async createDirectorPlan() { return { invalid: true }; },
@@ -94,8 +94,11 @@ describe("JobRunner", () => {
     const job = await runner.runDirectorPlan(directorInput);
     await runner.waitFor(job.id);
 
-    expect(repairs).toBe(1);
-    expect((await store.get(job.id))?.status).toBe("completed");
+    expect(repairs).toBe(0);
+    expect(await store.get(job.id)).toMatchObject({
+      status: "failed",
+      error: "AI 已返回结果，但格式不兼容；为避免重复扣费，系统未自动发起修复请求",
+    });
   });
 
   it("replaces repeated schema details with a concise safe message", async () => {
@@ -108,7 +111,7 @@ describe("JobRunner", () => {
     const job = await runner.runDirectorPlan(directorInput);
     await runner.waitFor(job.id);
 
-    expect((await store.get(job.id))?.error).toBe("AI 返回的导演计划结构不兼容，请更换模型或稍后重试");
+    expect((await store.get(job.id))?.error).toBe("AI 已返回结果，但格式不兼容；为避免重复扣费，系统未自动发起修复请求");
   });
 
   it("does not automatically retry a billed text request after a provider failure", async () => {
