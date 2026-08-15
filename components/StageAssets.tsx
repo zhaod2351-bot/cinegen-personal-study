@@ -1,6 +1,8 @@
 import React, { ChangeEvent, useRef, useState } from "react";
 import {
   Box,
+  Download,
+  Eye,
   Grid2X2,
   ImageUp,
   List,
@@ -12,6 +14,7 @@ import {
   Sparkles,
   Trash2,
   User,
+  X,
 } from "lucide-react";
 import type { DirectorAsset, DirectorClip } from "../server/types";
 import { createStoryboardJob, pollAiJob } from "../services/aiApiService";
@@ -51,6 +54,7 @@ const StageAssets: React.FC<Props> = ({
   const [menuOpen, setMenuOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   if (!data)
@@ -473,10 +477,11 @@ const StageAssets: React.FC<Props> = ({
                     ) : (
                       <span>暂无参考图</span>
                     )}
-                    <button onClick={() => fileRef.current?.click()}>
-                      <ImageUp size={19} />
-                      上传 / 替换
-                    </button>
+                    <div className="asset-image-actions">
+                      {selected.referenceImage && <button onClick={() => setPreviewOpen(true)}><Eye size={17} />查看大图</button>}
+                      {selected.referenceImage && <a href={selected.referenceImage} download={`${name || "参考图"}.webp`}><Download size={17} />下载保存</a>}
+                      <button onClick={() => fileRef.current?.click()}><ImageUp size={17} />上传 / 替换</button>
+                    </div>
                     <input
                       ref={fileRef}
                       type="file"
@@ -678,6 +683,14 @@ const StageAssets: React.FC<Props> = ({
       {notice && (
         <div className="director-notice" role="status">
           {notice}
+        </div>
+      )}
+      {previewOpen && selected?.referenceImage && (
+        <div role="dialog" aria-label={`${name}参考图预览`} className="fixed inset-0 z-[150] grid place-items-center bg-black/75 p-8" onClick={() => setPreviewOpen(false)}>
+          <div className="relative max-h-full max-w-full" onClick={(event) => event.stopPropagation()}>
+            <img src={selected.referenceImage} alt={`${name}参考图大图`} className="max-h-[88vh] max-w-[88vw] rounded-lg object-contain shadow-2xl" />
+            <button aria-label="关闭大图" onClick={() => setPreviewOpen(false)} className="absolute -right-4 -top-4 rounded-full bg-white p-2 text-[#30251d] shadow-lg"><X size={20} /></button>
+          </div>
         </div>
       )}
     </section>
