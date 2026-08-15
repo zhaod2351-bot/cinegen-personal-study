@@ -208,6 +208,7 @@ describe("OpenAIGateway", () => {
         model: "text-model",
         max_completion_tokens: 3_500,
         reasoning_effort: "low",
+        stream: true,
         response_format: expect.objectContaining({ type: "json_schema" }),
       }),
     ]);
@@ -234,6 +235,21 @@ describe("OpenAIGateway", () => {
 
     await expect(gateway.createDirectorPlan(directorInput)).resolves.toEqual({ summary: "fallback result" });
     expect(completionInputs.map((request) => request.response_format?.type)).toEqual(["json_schema", "json_object"]);
+  });
+
+  it("collects a streamed relay response before parsing provider JSON", async () => {
+    const gateway = new OpenAIGateway(async () => settings, () => ({
+      chat: {
+        completions: {
+          create: async () => (async function* () {
+            yield { choices: [{ delta: { content: '{"summary":' } }] };
+            yield { choices: [{ delta: { content: '"streamed result"}' } }] };
+          })(),
+        },
+      },
+    } as unknown as OpenAI));
+
+    await expect(gateway.createDirectorPlan(directorInput)).resolves.toEqual({ summary: "streamed result" });
   });
 
   it("does not retry authentication or network failures as a compatibility fallback", async () => {

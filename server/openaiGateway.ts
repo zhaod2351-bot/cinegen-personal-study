@@ -188,19 +188,21 @@ async function createStructuredCompletion(
 ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
   const common = {
     model: input.model,
-    stream: false as const,
+    // Keep relay/Cloudflare connections active while long director plans are
+    // generated. Non-streaming requests commonly hit a 100-second HTTP 524.
+    stream: true as const,
     max_completion_tokens: 3_500,
     reasoning_effort: "low" as const,
     messages: [{ role: "user" as const, content: input.prompt }],
   };
   if (!input.preferJsonSchema) {
-    return await client.chat.completions.create({
+    return await collectStreamingCompletion(await client.chat.completions.create({
       ...common,
       response_format: { type: "json_object" },
-    } as Parameters<typeof client.chat.completions.create>[0]) as OpenAI.Chat.Completions.ChatCompletion;
+    } as Parameters<typeof client.chat.completions.create>[0]));
   }
   try {
-    return await client.chat.completions.create({
+    return await collectStreamingCompletion(await client.chat.completions.create({
       ...common,
       response_format: {
         type: "json_schema",
@@ -210,15 +212,28 @@ async function createStructuredCompletion(
           schema: z.toJSONSchema(DirectorPlanSchema),
         },
       },
-    } as Parameters<typeof client.chat.completions.create>[0]) as OpenAI.Chat.Completions.ChatCompletion;
+    } as Parameters<typeof client.chat.completions.create>[0]));
   } catch (error) {
     const status = (error as { status?: unknown })?.status;
     if (status !== 400 && status !== 404 && status !== 422) throw error;
-    return await client.chat.completions.create({
+    return await collectStreamingCompletion(await client.chat.completions.create({
       ...common,
       response_format: { type: "json_object" },
-    } as Parameters<typeof client.chat.completions.create>[0]) as OpenAI.Chat.Completions.ChatCompletion;
+    } as Parameters<typeof client.chat.completions.create>[0]));
   }
+}
+
+async function collectStreamingCompletion(response: unknown): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+  if (response && typeof (response as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] === "function") {
+    let content = "";
+    for await (const chunk of response as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>) {
+      content += chunk.choices[0]?.delta?.content ?? "";
+    }
+    return { choices: [{ message: { role: "assistant", content } }] } as OpenAI.Chat.Completions.ChatCompletion;
+  }
+  // Allows compatible providers that ignore stream=true and return a normal
+  // completion, and keeps lightweight client fakes straightforward.
+  return response as OpenAI.Chat.Completions.ChatCompletion;
 }
 
 const MAX_GENERATED_IMAGE_BYTES = 20 * 1024 * 1024;
