@@ -7,11 +7,12 @@ import type { Character, ProjectState, PropAsset, Scene, ScriptData, Shot } from
 interface Props {
   project: ProjectState;
   updateProject: (updates: Partial<ProjectState>) => void;
+  onOpenAssets?: () => void;
 }
 
 type View = "source" | "breakdown";
 
-const StageScript: React.FC<Props> = ({ project, updateProject }) => {
+const StageScript: React.FC<Props> = ({ project, updateProject, onOpenAssets }) => {
   const [view, setView] = useState<View>(project.scriptData ? "breakdown" : "source");
   const [script, setScript] = useState(project.rawScript);
   const [preview, setPreview] = useState<DirectorPlan | null>(null);
@@ -108,10 +109,10 @@ const StageScript: React.FC<Props> = ({ project, updateProject }) => {
             镜头剧本
           </button>
         </div>
-        <button onClick={analyze} disabled={status === "running"} className="flex items-center gap-2 rounded-md bg-[#c4510a] px-5 py-3 text-sm font-semibold text-white shadow-sm disabled:opacity-60">
+        <div className="flex items-center gap-3">{project.scriptData && <button onClick={onOpenAssets} className="rounded-md border border-[#d8cbbb] bg-white px-5 py-3 text-sm font-semibold">进入工作台</button>}<button onClick={analyze} disabled={status === "running"} className="flex items-center gap-2 rounded-md bg-[#c4510a] px-5 py-3 text-sm font-semibold text-white shadow-sm disabled:opacity-60">
           {status === "running" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
           AI 剧本分析
-        </button>
+        </button></div>
       </header>
 
       {status === "running" && (

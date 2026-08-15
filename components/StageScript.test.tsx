@@ -65,6 +65,13 @@ describe("StageScript GPT workflow", () => {
     retryAiJob.mockReset().mockResolvedValue({ jobId: "job-retry", status: "queued" });
   });
 
+  it("opens the asset workspace from a locked script", () => {
+    const onOpenAssets = vi.fn();
+    render(<StageScript project={project} updateProject={vi.fn()} onOpenAssets={onOpenAssets} />);
+    fireEvent.click(screen.getByRole("button", { name: "进入工作台" }));
+    expect(onOpenAssets).toHaveBeenCalledOnce();
+  });
+
   it("submits the locked script and shows task progress", async () => {
     pollAiJob.mockReturnValue(new Promise(() => undefined));
     render(<StageScript project={{ ...project, scriptData: null }} updateProject={vi.fn()} />);

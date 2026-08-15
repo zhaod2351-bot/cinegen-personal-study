@@ -31,6 +31,21 @@ describe("StageDirector storyboard jobs", () => {
     retryAiJob.mockReset().mockResolvedValue({ jobId: "job-retry", status: "queued" });
   });
 
+  it("opens shot organization controls and explains unavailable video generation", async () => {
+    render(<StageDirector project={project} updateProject={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "整理镜头" }));
+    expect(screen.getByRole("dialog", { name: "整理镜头" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "完成" }));
+    fireEvent.click(screen.getByRole("button", { name: "生成视频" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("视频 API 尚未接入");
+  });
+
+  it("opens the clip containing the linked asset shot", () => {
+    const secondClip = { ...project.directorClips[0], id: "clip-2", title: "第二段", shots: [{ ...project.directorClips[0].shots[0], id: "shot-2", title: "目标镜头" }] };
+    render(<StageDirector project={{ ...project, directorClips: [...project.directorClips, secondClip] }} updateProject={vi.fn()} initialShotId="shot-2" />);
+    expect(screen.getByText(/当前生产来源：已锁定剧本 · 第二段/)).toBeInTheDocument();
+  });
+
   it("creates a storyboard job for the active clip", async () => {
     render(<StageDirector project={project} updateProject={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "生成新版本" }));

@@ -59,6 +59,7 @@ function App() {
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('cinegen_theme') as Theme) || 'paper');
   const [aiHealth, setAiHealth] = useState<AiHealth | null>(null);
+  const [directorFocusShotId, setDirectorFocusShotId] = useState<string | undefined>();
 
   // Ref to hold debounce timer
   const saveTimeoutRef = useRef<any>(null);
@@ -130,13 +131,13 @@ function App() {
     if (!project) return null;
     switch (project.stage) {
       case 'script':
-        return <StageScript project={project} updateProject={updateProject} />;
+        return <StageScript project={project} updateProject={updateProject} onOpenAssets={() => setStage('assets')} />;
       case 'import':
         return <StageImport project={project} updateProject={updateProject} />;
       case 'assets':
-        return <StageAssets project={project} updateProject={updateProject} onOpenDirector={() => setStage('director')} />;
+        return <StageAssets project={project} updateProject={updateProject} onOpenDirector={(shotId) => { setDirectorFocusShotId(shotId); setStage('director'); }} />;
       case 'director':
-        return <StageDirector project={project} updateProject={updateProject} />;
+        return <StageDirector project={project} updateProject={updateProject} initialShotId={directorFocusShotId} />;
       case 'export':
         return <StageExport project={project} updateProject={updateProject} />;
       default:

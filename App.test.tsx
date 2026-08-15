@@ -98,4 +98,18 @@ describe("App settings entry", () => {
 
     expect(await screen.findByRole("dialog", { name: "AI 设置中心" })).toBeVisible();
   });
+
+  it("connects every production-stage navigation button to its workspace", async () => {
+    getAllProjectsMetadata.mockResolvedValue([project]);
+    render(<App />);
+    const projectHeading = (await screen.findAllByRole("heading", { name: "余烬回声" })).find((heading) => heading.closest("article"));
+    fireEvent.click(projectHeading!.closest("article") as HTMLElement);
+
+    fireEvent.click(await screen.findByRole("button", { name: /导入式剧本/ }));
+    expect(await screen.findByRole("heading", { name: "导入式剧本与故事" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /设计与资产/ }));
+    expect(await screen.findByText("请先完成剧本分析或导入式剧本。")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /成片与导出/ }));
+    expect(await screen.findByRole("heading", { name: "成片与导出" })).toBeVisible();
+  });
 });
