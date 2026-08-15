@@ -68,7 +68,12 @@ async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> 
     headers: { "content-type": "application/json", ...init.headers },
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error((body as { error?: string }).error ?? `AI API request failed: ${response.status}`);
+  if (!response.ok) {
+    const errorBody = body as { error?: string; details?: Array<{ path?: Array<string | number>; message?: string }> };
+    const issue = errorBody.details?.[0];
+    const detail = issue?.message ? `（${issue.path?.join(".") || "请求"}：${issue.message}）` : "";
+    throw new Error(`${errorBody.error ?? `AI API request failed: ${response.status}`}${detail}`);
+  }
   return body as T;
 }
 

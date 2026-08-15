@@ -124,7 +124,7 @@ const StageAssets: React.FC<Props> = ({
 
   const notify = (message: string) => {
     setNotice(message);
-    window.setTimeout(() => setNotice(""), 2600);
+    window.setTimeout(() => setNotice(""), 8000);
   };
   const save = (changes: Record<string, unknown>) => {
     if (!selected) return;
@@ -760,7 +760,7 @@ const StageAssets: React.FC<Props> = ({
         </main>
       </div>
       {notice && (
-        <div className="director-notice" role="status">
+        <div className="fixed right-6 top-24 z-[140] max-w-xl rounded-md bg-[#2d251f] px-4 py-3 text-sm text-white shadow-xl" role="status">
           {notice}
         </div>
       )}
