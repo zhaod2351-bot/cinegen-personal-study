@@ -6,10 +6,10 @@ import StageAssets from './components/StageAssets';
 import StageDirector from './components/StageDirector';
 import StageExport from './components/StageExport';
 import Dashboard from './components/Dashboard';
+import AiSettingsDialog from './components/AiSettingsDialog';
 import { ProjectState } from './types';
-import { Key, Save, CheckCircle, ArrowRight, ShieldCheck, Palette } from 'lucide-react';
+import { Save, CheckCircle, Palette, Settings } from 'lucide-react';
 import { getProjectById, saveProjectToDB, subscribeToProjectSync } from './services/storageService';
-import { setGlobalApiKey } from './services/geminiService';
 import { getAiHealth, type AiHealth } from './services/aiApiService';
 
 const HomeLinks = () => (
@@ -55,26 +55,13 @@ const ThemePicker = ({ theme, setTheme }: { theme: Theme; setTheme: (theme: Them
 
 function App() {
   const [project, setProject] = useState<ProjectState | null>(null);
-  const [apiKey, setApiKey] = useState<string>('');
-  const [inputKey, setInputKey] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('cinegen_theme') as Theme) || 'paper');
   const [aiHealth, setAiHealth] = useState<AiHealth | null>(null);
-  // A model key is optional in the personal study deployment. Users can
-  // browse and edit projects before selecting an AI provider.
-  const requiresApiKeyForEntry = false;
 
   // Ref to hold debounce timer
   const saveTimeoutRef = useRef<any>(null);
-
-  // Load API Key from localStorage on mount
-  useEffect(() => {
-    const storedKey = localStorage.getItem('cinegen_api_key');
-    if (storedKey) {
-      setApiKey(storedKey);
-      setGlobalApiKey(storedKey);
-    }
-  }, []);
 
   // Auto-save logic
   useEffect(() => {
@@ -118,20 +105,6 @@ function App() {
     });
   }, [project?.id]);
 
-  const handleSaveKey = () => {
-    if (!inputKey.trim()) return;
-    setApiKey(inputKey);
-    setGlobalApiKey(inputKey);
-    localStorage.setItem('cinegen_api_key', inputKey);
-  };
-
-  const handleClearKey = () => {
-    localStorage.removeItem('cinegen_api_key');
-    setApiKey('');
-    setGlobalApiKey('');
-    setProject(null);
-  };
-
   const updateProject = (updates: Partial<ProjectState>) => {
     if (!project) return;
     setProject(prev => prev ? ({ ...prev, ...updates }) : null);
@@ -171,77 +144,19 @@ function App() {
     }
   };
 
-  // API Key Entry Screen (Industrial Design)
-  if (requiresApiKeyForEntry && !apiKey) {
-    return (
-      <>
-        <ThemePicker theme={theme} setTheme={setTheme} />
-        <div className="h-screen bg-[#050505] flex flex-col items-center justify-center p-8 relative overflow-hidden">
-          {/* Background Accents */}
-          <div className="absolute top-0 right-0 p-64 bg-indigo-900/5 blur-[150px] rounded-full pointer-events-none"></div>
-          <div className="absolute bottom-0 left-0 p-48 bg-zinc-900/10 blur-[120px] rounded-full pointer-events-none"></div>
-
-          <div className="w-full max-w-md bg-[#0A0A0A] border border-zinc-800 p-8 rounded-xl shadow-2xl relative z-10 animate-in fade-in zoom-in-95 duration-300">
-
-            <div className="flex items-center gap-3 mb-8 border-b border-zinc-900 pb-6">
-              <div className="w-10 h-10 bg-white text-black flex items-center justify-center">
-                <Key className="w-5 h-5" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-white tracking-wide">CineGen AI Director</h1>
-                <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono">Authentication Required</p>
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              <div>
-                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Google Gemini API Key</label>
-                <input
-                  type="password"
-                  value={inputKey}
-                  onChange={(e) => setInputKey(e.target.value)}
-                  placeholder="Enter your API Key..."
-                  className="w-full bg-[#141414] border border-zinc-800 text-white px-4 py-3 text-sm rounded-lg focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-900 transition-all font-mono placeholder:text-zinc-700"
-                />
-                <p className="mt-3 text-[10px] text-zinc-600 leading-relaxed">
-                  本应用需要 Gemini 2.5 Flash 及 Veo 视频生成权限。请确保您的 API Key 关联了已开通结算功能的 Google Cloud 项目。
-                  <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline ml-1">查看文档</a>
-                </p>
-              </div>
-
-              <button
-                onClick={handleSaveKey}
-                disabled={!inputKey}
-                className="w-full py-3 bg-white text-black font-bold uppercase tracking-widest text-xs rounded-lg hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Confirm Access <ArrowRight className="w-3 h-3" />
-              </button>
-
-              <div className="flex items-center justify-center gap-2 text-[10px] text-zinc-700 font-mono">
-                <ShieldCheck className="w-3 h-3" />
-                Key is stored locally in your browser
-              </div>
-            </div>
-          </div>
-        </div>
-        <HomeLinks />
-      </>
-    );
-  }
-
   // Dashboard View
   if (!project) {
     return (
       <>
         <ThemePicker theme={theme} setTheme={setTheme} />
         <button
-          onClick={apiKey ? handleClearKey : undefined}
-          className="fixed top-4 right-4 z-50 text-[10px] text-zinc-600 transition-colors uppercase font-mono tracking-widest"
-          title={apiKey ? 'Remove locally saved model key' : 'Model can be configured later'}
+          onClick={() => setSettingsOpen(true)}
+          className="fixed top-4 right-4 z-[80] inline-flex items-center gap-2 rounded-lg border border-black/10 bg-white/85 px-3 py-2 text-[11px] font-semibold text-zinc-700 shadow-lg backdrop-blur-md transition hover:bg-white"
         >
-          {apiKey ? '清除模型密钥' : '模型可后续配置'}
+          <Settings className="h-3.5 w-3.5" />系统设置
         </button>
         <Dashboard onOpenProject={handleOpenProject} />
+        {settingsOpen && <AiSettingsDialog onClose={() => setSettingsOpen(false)} />}
         <HomeLinks />
       </>
     );
@@ -255,6 +170,7 @@ function App() {
         currentStage={project.stage}
         setStage={setStage}
         onExit={handleExitProject}
+        onOpenSettings={() => setSettingsOpen(true)}
         projectName={project.title}
       />
 
@@ -276,6 +192,8 @@ function App() {
           )}
         </div>
       </main>
+
+      {settingsOpen && <AiSettingsDialog onClose={() => setSettingsOpen(false)} />}
 
       <div className="fixed bottom-4 right-5 z-[70] rounded-md border border-[#ded5c8] bg-[#fffaf3]/95 px-3 py-2 text-[10px] text-[#75685d] shadow-sm backdrop-blur">
         {aiHealth ? (

@@ -1,19 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { FileText, Users, Clapperboard, Film, Settings, ChevronLeft, Aperture, FileInput } from 'lucide-react';
 
 interface SidebarProps {
   currentStage: string;
   setStage: (stage: 'script' | 'import' | 'assets' | 'director' | 'export') => void;
   onExit: () => void;
+  onOpenSettings: () => void;
   projectName?: string;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentStage, setStage, onExit, projectName }) => {
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const setTheme = (theme: 'paper' | 'mist' | 'night') => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem('cinegen_theme', theme);
-  };
+const Sidebar: React.FC<SidebarProps> = ({ currentStage, setStage, onExit, onOpenSettings, projectName }) => {
   const navItems = [
     { id: 'script', label: '剧本与故事', icon: FileText, sub: '第一步' },
     { id: 'import', label: '导入式剧本', icon: FileInput, sub: '导入' },
@@ -67,8 +63,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentStage, setStage, onExit, proje
       </nav>
 
       <div className="border-t border-[#e6ddd1] p-4">
-        {settingsOpen && <div className="mb-3 rounded-lg border border-[#ded5c8] bg-white p-2"><p className="mb-2 text-[10px] text-[#8d7e70]">主题颜色</p><div className="grid grid-cols-3 gap-1"><button onClick={() => setTheme('paper')} className="rounded bg-[#fffaf3] px-1 py-2 text-[10px]">暖白</button><button onClick={() => setTheme('mist')} className="rounded bg-[#eaf1f5] px-1 py-2 text-[10px]">雾蓝</button><button onClick={() => setTheme('night')} className="rounded bg-[#292929] px-1 py-2 text-[10px] text-white">夜间</button></div><p className="mt-2 text-[9px] text-[#9b8c7e]">AI 模型可在导入式剧本页面选择手动导入或后续 API。</p></div>}
-        <button onClick={() => setSettingsOpen(!settingsOpen)} className="flex w-full items-center justify-between text-[11px] text-[#75685c] transition-colors hover:text-[#c4510c]">
+        <button onClick={onOpenSettings} className="flex w-full items-center justify-between text-[11px] text-[#75685c] transition-colors hover:text-[#c4510c]">
           <span>系统设置</span>
           <Settings className="h-4 w-4" />
         </button>
