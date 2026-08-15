@@ -40,6 +40,34 @@ describe("StageDirector storyboard jobs", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("视频 API 尚未接入");
   });
 
+  it("adds a shot and keeps its editable fields in the project update", () => {
+    const updateProject = vi.fn();
+    render(<StageDirector project={project} updateProject={updateProject} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "添加镜头" }));
+
+    const addedUpdate = updateProject.mock.calls.at(-1)?.[0] as Partial<ProjectState>;
+    expect(addedUpdate.directorClips?.[0].shots).toHaveLength(2);
+    expect(addedUpdate.directorClips?.[0].shots[1]).toMatchObject({
+      shotSize: "中景 (MS)",
+      duration: 5,
+      assets: [{ type: "scene", id: "ruin" }],
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("已添加镜头");
+  });
+
+  it("allows editing shot duration", () => {
+    const updateProject = vi.fn();
+    render(<StageDirector project={project} updateProject={updateProject} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "编辑" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "时长（秒）" }), { target: { value: "7.5" } });
+
+    expect(updateProject).toHaveBeenLastCalledWith(expect.objectContaining({
+      directorClips: [expect.objectContaining({ shots: [expect.objectContaining({ duration: 7.5 })] })],
+    }));
+  });
+
   it("opens the clip containing the linked asset shot", () => {
     const secondClip = { ...project.directorClips[0], id: "clip-2", title: "第二段", shots: [{ ...project.directorClips[0].shots[0], id: "shot-2", title: "目标镜头" }] };
     render(<StageDirector project={{ ...project, directorClips: [...project.directorClips, secondClip] }} updateProject={vi.fn()} initialShotId="shot-2" />);
