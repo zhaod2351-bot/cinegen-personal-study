@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import StageAssets from "./StageAssets";
 
 const createStoryboardJob = vi.fn();
@@ -33,6 +33,7 @@ const project = {
 } as never;
 
 describe("StageAssets image generation", () => {
+  afterEach(() => cleanup());
   beforeEach(() => {
     localStorage.clear();
     createStoryboardJob.mockReset().mockResolvedValue({ jobId: "image-job-1", status: "queued" });
