@@ -18,6 +18,7 @@ export function buildDirectorPlanPrompt(input: DirectorPlanInput): string {
     "【拆解规则】",
     "1. 输出 polishedScript、summary、assets、clips。",
     "2. assets 必须区分 character、scene、prop，每项拥有稳定且唯一的 id。",
+    "2.1 如果锁定剧本包含“出场人物”名单，名单中的每个名字必须各生成且只生成一个 character；不得遗漏、重命名、互换名字与描述，也不得用不同 id 重复同一角色。",
     "3. 每个镜头包含景别、运镜、时长、动作、视觉提示词、音频项和资产引用。",
     "4. 镜头资产只能通过 type + id 引用，不能只使用名称；同名不同类别是不同资产。",
     "5. 视觉提示词必须服从项目画风，并明确人物、场景、构图、光线和情绪。",

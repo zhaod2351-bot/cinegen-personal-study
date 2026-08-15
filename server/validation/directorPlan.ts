@@ -77,7 +77,7 @@ export function validateDirectorPlan(input: unknown): DirectorPlan {
       throw new Error(`duplicate asset reference key: ${key}`);
     }
     keys.add(key);
-    const normalizedName = asset.name.trim().toLocaleLowerCase();
+    const normalizedName = asset.name.normalize("NFKC").replace(/[\s·•・,，。.!！?？:：;；'"“”‘’()（）【】\[\]]/g, "").toLocaleLowerCase();
     if (names.has(normalizedName)) throw new Error(`duplicate asset name: ${asset.name}`);
     names.add(normalizedName);
   }

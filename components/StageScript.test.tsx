@@ -271,4 +271,28 @@ describe("StageScript GPT workflow", () => {
       tags: ["second"],
     });
   });
+
+  it("matches characters by name when AI changes their generated id order", () => {
+    const source = {
+      ...project,
+      scriptData: {
+        ...project.scriptData!,
+        characters: [
+          { id: "character-1", name: "苏林", gender: "男", age: "未知", personality: "救援者", referenceImage: "data:image/png;base64,c3VsaW4=", variations: [] },
+          { id: "character-3", name: "小狐狸", gender: "女", age: "未知", personality: "狐族少女", referenceImage: "data:image/png;base64,Zm94", variations: [] },
+        ],
+      },
+    } as ProjectState;
+    const converted = convertDirectorPlan(source, {
+      ...completedPlan,
+      assets: [
+        { id: "character-1", type: "character", name: "小狐狸", description: "负伤的狐族少女", tags: ["狐族"] },
+        { id: "character-3", type: "character", name: "苏林", description: "果断的救援者", tags: ["男主"] },
+      ],
+    });
+
+    expect(converted.scriptData.characters).toHaveLength(2);
+    expect(converted.scriptData.characters[0]).toMatchObject({ name: "小狐狸", referenceImage: "data:image/png;base64,Zm94" });
+    expect(converted.scriptData.characters[1]).toMatchObject({ name: "苏林", referenceImage: "data:image/png;base64,c3VsaW4=" });
+  });
 });

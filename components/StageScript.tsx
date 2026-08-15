@@ -237,15 +237,15 @@ export function convertDirectorPlan(project: ProjectState, plan: DirectorPlan): 
   const oldScenes = project.scriptData?.scenes || [];
   const oldProps = project.scriptData?.props || [];
   const characters: Character[] = plan.assets.filter((asset) => asset.type === "character").map((asset) => {
-    const old = oldCharacters.find((item) => item.id === asset.id || item.name === asset.name);
+    const old = findExistingAsset(oldCharacters, asset.name, (item) => item.name);
     return { id: asset.id, name: old?.name || asset.name, gender: old?.gender || "未知", age: old?.age || "未知", personality: aiField(old, "personality", asset.description), visualPrompt: aiField(old, "visualPrompt", asset.description), referenceImage: old?.referenceImage, tags: aiField(old, "tags", asset.tags || []), variations: old?.variations || [], fieldProvenance: provenance(old, ["personality", "visualPrompt", "tags"]) };
   });
   const scenes: Scene[] = plan.assets.filter((asset) => asset.type === "scene").map((asset) => {
-    const old = oldScenes.find((item) => item.id === asset.id || item.location === asset.name);
+    const old = findExistingAsset(oldScenes, asset.name, (item) => item.location, asset.id, (item) => item.id);
     return { id: asset.id, location: old?.location || asset.name, time: aiField(old, "time", asset.sceneContinuity?.time || "日间"), weather: aiField(old, "weather", asset.sceneContinuity?.weather || "晴朗少云"), lighting: aiField(old, "lighting", asset.sceneContinuity?.lighting || "自然日光，光向统一"), palette: aiField(old, "palette", asset.sceneContinuity?.palette || "低饱和中性色"), atmosphere: aiField(old, "atmosphere", asset.description), visualPrompt: aiField(old, "visualPrompt", asset.description), referenceImage: old?.referenceImage, tags: aiField(old, "tags", asset.tags || []), fieldProvenance: provenance(old, ["time", "weather", "lighting", "palette", "atmosphere", "visualPrompt", "tags"]) };
   });
   const props: PropAsset[] = plan.assets.filter((asset) => asset.type === "prop").map((asset) => {
-    const old = oldProps.find((item) => item.id === asset.id || item.name === asset.name);
+    const old = findExistingAsset(oldProps, asset.name, (item) => item.name, asset.id, (item) => item.id);
     return { id: asset.id, name: old?.name || asset.name, description: aiField(old, "description", asset.description), visualPrompt: aiField(old, "visualPrompt", asset.description), referenceImage: old?.referenceImage, tags: aiField(old, "tags", asset.tags || []), fieldProvenance: provenance(old, ["description", "visualPrompt", "tags"]) };
   });
   const shots: Shot[] = plan.clips.flatMap((clip) => clip.shots.map((shot) => ({
@@ -271,6 +271,16 @@ function aiField<T extends object, K extends keyof T>(old: T | undefined, key: K
 
 function provenance<T extends { fieldProvenance?: Record<string, "manual" | "ai" | "legacy"> }>(old: T | undefined, fields: string[]) {
   return Object.fromEntries(fields.map((field) => [field, old ? old.fieldProvenance?.[field] || "legacy" : "ai"]));
+}
+
+function findExistingAsset<T>(items: T[], generatedName: string, getName: (item: T) => string, generatedId?: string, getId?: (item: T) => string): T | undefined {
+  const target = normalizeAssetName(generatedName);
+  return items.find((item) => normalizeAssetName(getName(item)) === target)
+    || (generatedId && getId ? items.find((item) => getId(item) === generatedId) : undefined);
+}
+
+function normalizeAssetName(value: string): string {
+  return value.normalize("NFKC").replace(/[\s·•・,，。.!！?？:：;；'"“”‘’()（）【】\[\]]/g, "").toLocaleLowerCase();
 }
 
 function readableAnalysisError(cause: unknown): string {
