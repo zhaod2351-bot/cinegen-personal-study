@@ -95,7 +95,7 @@ describe("StageAssets image generation", () => {
     await waitFor(() => expect(createStoryboardJob).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole("button", { name: "场景" }));
     const sceneGenerate = screen.getByRole("button", { name: "重新生成" });
-    expect(sceneGenerate).not.toBeDisabled();
+    expect((sceneGenerate as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(sceneGenerate);
 
     await waitFor(() => expect(createStoryboardJob).toHaveBeenCalledTimes(2));
