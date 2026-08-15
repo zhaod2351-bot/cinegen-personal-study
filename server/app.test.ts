@@ -72,9 +72,9 @@ async function settingsApiFixture(options: {
     runner,
     settingsStore,
     connectionTester,
-    models: { text: "gpt-test", image: "runtime-image-model" },
+    archiveRoot: join(root, "archive"),
   });
-  return { app, connectionTester, settingsStore };
+  return { app, archiveRoot: join(root, "archive"), connectionTester, settingsStore };
 }
 
 async function fixtureApp() {
@@ -156,12 +156,31 @@ async function failingProviderFixture() {
     runner,
     settingsStore,
     connectionTester: new RecordingConnectionTester(),
-    models: { text: "text-model", image: "image-model" },
   });
   return { app, root, runner };
 }
 
 describe("local AI API", () => {
+  it.each([
+    ["PUT", "/api/settings/ai"],
+    ["POST", "/api/settings/ai/test-text"],
+    ["POST", "/api/settings/ai/test-image"],
+  ])("returns a fixed 400 for malformed JSON sent to %s settings routes", async (method, route) => {
+    const { app } = await settingsApiFixture();
+    const malformed = '{"apiKey":"LEAKME_SECRET",broken';
+
+    const response = await request(app)[method.toLowerCase() as "put" | "post"](route)
+      .set("Content-Type", "application/json")
+      .send(malformed)
+      .expect(400);
+
+    expect(response.body).toEqual({ code: "INVALID_JSON", error: "请求 JSON 格式无效" });
+    const serialized = JSON.stringify(response.body);
+    expect(serialized).not.toContain("LEAKME_SECRET");
+    expect(serialized).not.toContain("apiKey");
+    expect(serialized).not.toContain("broken");
+  });
+
   it("returns only the redacted AI settings DTO", async () => {
     const { app } = await settingsApiFixture();
 
@@ -304,9 +323,20 @@ describe("local AI API", () => {
     expect(response.body).toEqual({ code: "INVALID_AI_SETTINGS", error: "AI 设置输入无效" });
   });
 
-  it("reports configured models without exposing the key", async () => {
-    const response = await request(await fixtureApp()).get("/api/health").expect(200);
-    expect(response.body.models).toEqual({ text: "gpt-test", image: "runtime-image-model" });
+  it("reports the latest saved models without exposing the key", async () => {
+    const { app, archiveRoot } = await settingsApiFixture();
+    await request(app).put("/api/settings/ai").send({
+      text: { baseUrl: "https://text.example/v1", model: "live-text-model" },
+      image: { baseUrl: "https://image.example/v1", model: "live-image-model" },
+    }).expect(200);
+
+    const response = await request(app).get("/api/health").expect(200);
+
+    expect(response.body).toEqual({
+      ok: true,
+      models: { text: "live-text-model", image: "live-image-model" },
+      archiveRoot,
+    });
     expect(JSON.stringify(response.body)).not.toContain("secret");
   });
 

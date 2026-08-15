@@ -81,7 +81,6 @@ export interface AppDependencies {
   runner: JobRunner;
   settingsStore: AiSettingsStore;
   connectionTester: AiConnectionTester;
-  models: { text: string; image: string };
   archiveRoot?: string;
   distPath?: string;
 }
@@ -91,9 +90,14 @@ export function createApp(deps: AppDependencies): Express {
   app.disable("x-powered-by");
   app.use(express.json({ limit: "25mb" }));
 
-  app.get("/api/health", (_request, response) => {
-    response.json({ ok: true, models: deps.models, archiveRoot: deps.archiveRoot });
-  });
+  app.get("/api/health", settingsRoute(async (_request, response) => {
+    const settings = await deps.settingsStore.getPublicSettings();
+    response.json({
+      ok: true,
+      models: { text: settings.text.model, image: settings.image.model },
+      archiveRoot: deps.archiveRoot,
+    });
+  }));
 
   app.get("/api/settings/ai", settingsRoute(async (_request, response) => {
     response.json(await deps.settingsStore.getPublicSettings());
@@ -161,6 +165,9 @@ export function createApp(deps: AppDependencies): Express {
   }
 
   app.use((error: unknown, _request: Request, response: Response, _next: NextFunction) => {
+    if ((error as { type?: unknown })?.type === "entity.parse.failed") {
+      return response.status(400).json({ code: "INVALID_JSON", error: "请求 JSON 格式无效" });
+    }
     if (error instanceof ZodError) {
       return response.status(400).json({ error: "请求数据不完整", details: error.issues });
     }

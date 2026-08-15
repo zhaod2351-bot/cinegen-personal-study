@@ -20,7 +20,6 @@ const app = createApp({
   runner: runtime.runner,
   settingsStore: runtime.settingsStore,
   connectionTester: runtime.gateway,
-  models: { text: config.aiDefaults.text.model, image: config.aiDefaults.image.model },
   archiveRoot: config.assetRoot,
   distPath: resolve("dist"),
 });
