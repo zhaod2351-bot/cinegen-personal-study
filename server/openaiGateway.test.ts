@@ -1,8 +1,9 @@
 import OpenAI, { toFile } from "openai";
+import sharp from "sharp";
 import { describe, expect, it, vi } from "vitest";
 import type { RuntimeAiSettings } from "./settings/types";
 import type { DirectorPlanInput, StoryboardInput } from "./types";
-import { downloadGeneratedImage, OpenAIGateway, parseProviderJson, resolveImageSize } from "./openaiGateway";
+import { downloadGeneratedImage, normalizeGeneratedImageToPng, OpenAIGateway, parseProviderJson, resolveImageSize } from "./openaiGateway";
 
 const settings: RuntimeAiSettings = {
   text: {
@@ -18,6 +19,13 @@ const settings: RuntimeAiSettings = {
 };
 
 describe("image output size", () => {
+  it("converts relay WebP bytes into a real PNG file", async () => {
+    const webp = await sharp({ create: { width: 2, height: 2, channels: 4, background: "red" } }).webp().toBuffer();
+    const png = await normalizeGeneratedImageToPng(webp);
+    expect(png.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    expect((await sharp(png).metadata()).format).toBe("png");
+  });
+
   it("maps per-image ratio and 2K/4K resolution to relay dimensions", () => {
     expect(resolveImageSize("16:9", "2K")).toBe("2048x1152");
     expect(resolveImageSize("9:16", "4K")).toBe("2304x4096");
@@ -367,7 +375,7 @@ describe("OpenAIGateway", () => {
       prompt: "six-panel storyboard",
       input_fidelity: "high",
       size: "1536x1024",
-      output_format: "webp",
+      output_format: "png",
       stream: false,
     });
 

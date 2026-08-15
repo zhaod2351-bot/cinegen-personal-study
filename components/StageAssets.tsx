@@ -596,7 +596,7 @@ const StageAssets: React.FC<Props> = ({
                     )}
                     <div className="asset-image-actions">
                       {selected.referenceImage && <button onClick={() => setPreviewOpen(true)}><Eye size={17} />查看大图</button>}
-                      {selected.referenceImage && <a href={selected.referenceImage} download={`${name || "参考图"}.webp`}><Download size={17} />下载保存</a>}
+                      {selected.referenceImage && <button type="button" onClick={() => void downloadImageAsPng(selected.referenceImage!, name || "参考图").catch(() => notify("PNG 转换失败，请重新生成后再下载。"))}><Download size={17} />下载 PNG</button>}
                       <button onClick={() => fileRef.current?.click()}><ImageUp size={17} />上传 / 替换</button>
                       {selected.referenceImage && <button className="danger" onClick={() => {
                         if (!window.confirm(`确定删除“${name}”的当前参考图吗？`)) return;
@@ -891,7 +891,7 @@ function SkillCard({ skill, editing, update, remove, notify }: { skill: Characte
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2">
         {skill.referenceImage && <button type="button" onClick={() => setPreviewOpen(true)} className="flex items-center justify-center gap-1 rounded border border-[#c9b9a7] bg-white px-1 py-2 text-xs !text-[#30251d]"><Eye size={15} />查看大图</button>}
-        {skill.referenceImage && <a href={skill.referenceImage} download={`${skill.name || "技能"}-参考图.${skillImageExtension(skill.referenceImage)}`} className="flex items-center justify-center gap-1 rounded border border-[#c9b9a7] bg-white px-1 py-2 text-xs text-[#30251d]"><Download size={15} />下载保存</a>}
+        {skill.referenceImage && <button type="button" onClick={() => void downloadImageAsPng(skill.referenceImage!, `${skill.name || "技能"}-参考图`).catch(() => notify("PNG 转换失败，请重新上传或生成图片。"))} className="flex items-center justify-center gap-1 rounded border border-[#c9b9a7] bg-white px-1 py-2 text-xs text-[#30251d]"><Download size={15} />下载 PNG</button>}
         {editing && <button type="button" onClick={() => inputRef.current?.click()} className={`flex items-center justify-center gap-1 rounded border border-[#c9b9a7] bg-white px-1 py-2 text-xs !text-[#30251d] ${skill.referenceImage ? "" : "col-span-2"}`}><ImageUp size={15} />{skill.referenceImage ? "上传 / 替换" : "上传技能图"}</button>}
         {editing && skill.referenceImage && <button type="button" onClick={() => { if (!window.confirm(`确定删除“${skill.name}”的技能图片吗？技能文字资料会保留。`)) return; update({ referenceImage: undefined }); notify("技能图片已删除，技能文字资料仍然保留。"); }} className="flex items-center justify-center gap-1 rounded border border-red-200 bg-white px-1 py-2 text-xs !text-red-700"><Trash2 size={15} />删除图片</button>}
       </div>
@@ -910,10 +910,26 @@ function SkillCard({ skill, editing, update, remove, notify }: { skill: Characte
   </article>;
 }
 
-function skillImageExtension(dataUrl: string): string {
-  if (dataUrl.startsWith("data:image/jpeg")) return "jpg";
-  if (dataUrl.startsWith("data:image/webp")) return "webp";
-  return "png";
+async function downloadImageAsPng(dataUrl: string, fileName: string): Promise<void> {
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const loaded = new Image();
+    loaded.onload = () => resolve(loaded);
+    loaded.onerror = () => reject(new Error("无法读取图片"));
+    loaded.src = dataUrl;
+  });
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("无法转换 PNG");
+  context.drawImage(image, 0, 0);
+  const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error("无法转换 PNG")), "image/png"));
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${fileName.replace(/[<>:"/\\|?*]/g, "_")}.png`;
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
 export default StageAssets;

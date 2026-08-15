@@ -152,7 +152,7 @@ export async function archiveStoryboard(
     reservation.baseDirectory,
     `.v${reservation.version}.${randomUUID()}.tmp`,
   );
-  const stagingImagePath = joinForRoot(stagingDirectory, "故事板.webp");
+  const stagingImagePath = joinForRoot(stagingDirectory, "故事板.png");
   const stagingMetadataPath = joinForRoot(stagingDirectory, "生成信息.json");
   let committed = false;
   try {
@@ -179,7 +179,7 @@ export async function archiveStoryboard(
     return {
       version: reservation.version,
       directory: reservation.directory,
-      imagePath: joinForRoot(reservation.directory, "故事板.webp"),
+      imagePath: joinForRoot(reservation.directory, "故事板.png"),
       metadataPath: joinForRoot(reservation.directory, "生成信息.json"),
     };
   } finally {

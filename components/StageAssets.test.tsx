@@ -189,7 +189,7 @@ describe("StageAssets image generation", () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<StageAssets project={configured as never} updateProject={updateProject} />);
 
-    expect(screen.getByRole("link", { name: "下载保存" }).getAttribute("download")).toBe("青芒-参考图.png");
+    expect(screen.getByRole("button", { name: "下载 PNG" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "查看大图" }));
     expect(screen.getByRole("dialog", { name: "青芒技能图预览" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "关闭技能图" }));

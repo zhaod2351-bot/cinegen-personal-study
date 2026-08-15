@@ -33,6 +33,7 @@ describe("storyboard archive", () => {
     });
 
     expect(await readFile(result.imagePath)).toEqual(imageBytes);
+    expect(result.imagePath).toMatch(/故事板\.png$/);
     const metadata = await readFile(result.metadataPath, "utf8");
     expect(metadata).toContain("gpt-image-2");
     expect(metadata).not.toContain("sk-secret-must-not-leak");

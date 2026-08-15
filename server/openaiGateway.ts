@@ -2,6 +2,7 @@ import OpenAI, { toFile } from "openai";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { z } from "zod";
+import sharp from "sharp";
 import { buildDirectorPlanPrompt } from "./prompts/directorPlanPrompt";
 import { buildStoryboardPrompt } from "./prompts/storyboardPrompt";
 import { buildAssetReferencePrompt, isAssetReferenceInput } from "./prompts/assetReferencePrompt";
@@ -137,7 +138,7 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
           input_fidelity: "high",
           size,
           quality: "high",
-          output_format: "webp",
+          output_format: "png",
           background: "opaque",
         } as Parameters<typeof client.images.edit>[0]) as OpenAI.Images.ImagesResponse
         : await client.images.generate({
@@ -146,21 +147,29 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
           prompt,
           size,
           quality: "high",
-          output_format: "webp",
+          output_format: "png",
           background: "opaque",
         } as Parameters<typeof client.images.generate>[0]) as OpenAI.Images.ImagesResponse;
       const first = response.data?.[0];
       if (first?.b64_json) {
-        return { image: Buffer.from(first.b64_json, "base64"), model: provider.model };
+        return { image: await normalizeGeneratedImageToPng(Buffer.from(first.b64_json, "base64")), model: provider.model };
       }
       if (first?.url) {
-        return { image: await downloadGeneratedImage(first.url), model: provider.model };
+        return { image: await normalizeGeneratedImageToPng(await downloadGeneratedImage(first.url)), model: provider.model };
       }
       throw new Error("OpenAI returned no storyboard image");
     } catch (error) {
       throw sanitizedProviderError("Image", error);
     }
   }
+}
+
+export async function normalizeGeneratedImageToPng(image: Buffer): Promise<Buffer> {
+  if (image.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return image;
+  const isJpeg = image[0] === 0xff && image[1] === 0xd8;
+  const isWebp = image.subarray(0, 4).toString("ascii") === "RIFF" && image.subarray(8, 12).toString("ascii") === "WEBP";
+  if (!isJpeg && !isWebp) return image;
+  return sharp(image).png({ compressionLevel: 9 }).toBuffer();
 }
 
 export function resolveImageSize(aspectRatio: string, resolution: "1K" | "2K" | "4K"): string {
