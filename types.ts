@@ -5,6 +5,14 @@ export interface CharacterVariation {
   referenceImage?: string;
 }
 
+export interface CharacterSkill {
+  id: string;
+  name: string;
+  description: string;
+  visualPrompt: string;
+  referenceImage?: string;
+}
+
 export type AssetFieldSource = "manual" | "ai" | "legacy";
 export type AssetFieldProvenance = Record<string, AssetFieldSource>;
 
@@ -13,6 +21,8 @@ export interface Character {
   name: string;
   gender: string;
   age: string;
+  height?: string;
+  weight?: string;
   personality: string;
   visualPrompt?: string;
   referenceImage?: string; // Base URL
@@ -20,6 +30,7 @@ export interface Character {
   imageResolution?: ImageResolution;
   tags?: string[];
   variations: CharacterVariation[]; // Added: List of alternative looks
+  skills?: CharacterSkill[];
   fieldProvenance?: AssetFieldProvenance;
 }
 

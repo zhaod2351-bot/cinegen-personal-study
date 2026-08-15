@@ -19,6 +19,11 @@ export interface DirectorAsset {
     lighting: string;
     palette: string;
   };
+  characterProfile?: {
+    height: string;
+    weight: string;
+    skills: Array<{ id: string; name: string; description: string; visualPrompt: string }>;
+  };
   referenceImages?: DirectorReferenceImage[];
 }
 

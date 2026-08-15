@@ -295,4 +295,21 @@ describe("StageScript GPT workflow", () => {
     expect(converted.scriptData.characters[0]).toMatchObject({ name: "小狐狸", referenceImage: "data:image/png;base64,Zm94" });
     expect(converted.scriptData.characters[1]).toMatchObject({ name: "苏林", referenceImage: "data:image/png;base64,c3VsaW4=" });
   });
+
+  it("imports AI character height, weight and fixed skills", () => {
+    const converted = convertDirectorPlan({ ...project, scriptData: { ...project.scriptData!, characters: [] } }, {
+      ...completedPlan,
+      assets: [{ id: "fox", type: "character", name: "小狐狸", description: "狐族冒险者", characterProfile: {
+        height: "160cm",
+        weight: "48kg",
+        skills: [{ id: "skill-1", name: "灵狐闪", description: "高速闪避", visualPrompt: "青色狐火拖尾" }],
+      } }],
+    });
+    expect(converted.scriptData.characters[0]).toMatchObject({
+      height: "160cm",
+      weight: "48kg",
+      skills: [{ name: "灵狐闪", visualPrompt: "青色狐火拖尾" }],
+      fieldProvenance: { height: "ai", weight: "ai", skills: "ai" },
+    });
+  });
 });

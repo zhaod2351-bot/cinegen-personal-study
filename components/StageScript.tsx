@@ -238,7 +238,7 @@ export function convertDirectorPlan(project: ProjectState, plan: DirectorPlan): 
   const oldProps = project.scriptData?.props || [];
   const characters: Character[] = plan.assets.filter((asset) => asset.type === "character").map((asset) => {
     const old = findExistingAsset(oldCharacters, asset.name, (item) => item.name);
-    return { id: asset.id, name: old?.name || asset.name, gender: old?.gender || "未知", age: old?.age || "未知", personality: aiField(old, "personality", asset.description), visualPrompt: aiField(old, "visualPrompt", asset.description), referenceImage: old?.referenceImage, tags: aiField(old, "tags", asset.tags || []), variations: old?.variations || [], fieldProvenance: provenance(old, ["personality", "visualPrompt", "tags"]) };
+    return { id: asset.id, name: old?.name || asset.name, gender: old?.gender || "未知", age: old?.age || "未知", height: aiField(old, "height", asset.characterProfile?.height || "未设定"), weight: aiField(old, "weight", asset.characterProfile?.weight || "未设定"), personality: aiField(old, "personality", asset.description), visualPrompt: aiField(old, "visualPrompt", asset.description), referenceImage: old?.referenceImage, imageAspectRatio: old?.imageAspectRatio, imageResolution: old?.imageResolution, tags: aiField(old, "tags", asset.tags || []), variations: old?.variations || [], skills: aiField(old, "skills", asset.characterProfile?.skills || []), fieldProvenance: provenance(old, ["height", "weight", "skills", "personality", "visualPrompt", "tags"]) };
   });
   const scenes: Scene[] = plan.assets.filter((asset) => asset.type === "scene").map((asset) => {
     const old = findExistingAsset(oldScenes, asset.name, (item) => item.location, asset.id, (item) => item.id);

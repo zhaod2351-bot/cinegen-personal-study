@@ -15,6 +15,11 @@ const DirectorAssetSchema = z.object({
     lighting: z.string().min(1),
     palette: z.string().min(1),
   }).optional(),
+  characterProfile: z.object({
+    height: z.string().min(1),
+    weight: z.string().min(1),
+    skills: z.array(z.object({ id: z.string().min(1), name: z.string().min(1), description: z.string().min(1), visualPrompt: z.string().min(1) })).max(12),
+  }).optional(),
 });
 
 const AssetReferenceSchema = z.object({

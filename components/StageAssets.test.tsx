@@ -151,4 +151,23 @@ describe("StageAssets image generation", () => {
     expect(screen.queryByRole("textbox", { name: "资产标签" })).toBeNull();
     expect(screen.queryByText("标签")).toBeNull();
   });
+
+  it("shows physical details and allows a persistent character skill to be added", () => {
+    const updateProject = vi.fn();
+    render(<StageAssets project={project} updateProject={updateProject} />);
+    fireEvent.click(screen.getByRole("button", { name: "编辑" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "身高" }), { target: { value: "182cm" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "体重" }), { target: { value: "76kg" } });
+    fireEvent.click(screen.getByRole("button", { name: "添加技能" }));
+
+    expect(updateProject).toHaveBeenCalledWith(expect.objectContaining({
+      scriptData: expect.objectContaining({ characters: [expect.objectContaining({ height: "182cm" })] }),
+    }));
+    expect(updateProject).toHaveBeenCalledWith(expect.objectContaining({
+      scriptData: expect.objectContaining({ characters: [expect.objectContaining({ weight: "76kg" })] }),
+    }));
+    expect(updateProject).toHaveBeenCalledWith(expect.objectContaining({
+      scriptData: expect.objectContaining({ characters: [expect.objectContaining({ skills: [expect.objectContaining({ name: "新技能" })] })] }),
+    }));
+  });
 });

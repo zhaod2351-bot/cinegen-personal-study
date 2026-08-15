@@ -19,7 +19,7 @@ import {
 import type { DirectorAsset, DirectorClip } from "../server/types";
 import { createStoryboardJob, pollAiJob } from "../services/aiApiService";
 import { localApiFetch } from "../services/localApiSession";
-import { Character, ProjectState, PropAsset, Scene } from "../types";
+import { Character, CharacterSkill, ProjectState, PropAsset, Scene } from "../types";
 
 type AssetKind = "character" | "scene" | "prop";
 type AssetItem = Character | Scene | PropAsset;
@@ -246,8 +246,11 @@ const StageAssets: React.FC<Props> = ({
                 name: "新角色",
                 gender: "未设置",
                 age: "未设置",
+                height: "未设定",
+                weight: "未设定",
                 personality: "请填写角色备注。",
                 variations: [],
+                skills: [],
               },
             ],
           }
@@ -700,6 +703,14 @@ const StageAssets: React.FC<Props> = ({
                                   </span>
                                 )}
                               </p>
+                              <p>
+                                <label>身高</label>
+                                {editing ? <input aria-label="身高" value={(selected as Character).height || ""} onChange={(event) => save({ height: event.target.value })} placeholder="例如：180cm" /> : <span>{(selected as Character).height || "未设定"}</span>}
+                              </p>
+                              <p>
+                                <label>体重</label>
+                                {editing ? <input aria-label="体重" value={(selected as Character).weight || ""} onChange={(event) => save({ weight: event.target.value })} placeholder="例如：75kg" /> : <span>{(selected as Character).weight || "未设定"}</span>}
+                              </p>
                             </>
                           ) : isScene ? (
                             <SceneContinuityFields scene={selected as Scene} editing={editing} save={save} />
@@ -749,6 +760,7 @@ const StageAssets: React.FC<Props> = ({
                   )}
                 </section>
               </div>
+              {isCharacter && <CharacterSkillsSection character={selected as Character} editing={editing} save={save} notify={notify} />}
             </>
           ) : (
             <div className="director-empty">
@@ -810,6 +822,46 @@ function SceneContinuityFields({ scene, editing, save }: { scene: Scene; editing
       ) : <span>{value}</span>}
     </p>
   ))}</>;
+}
+
+function CharacterSkillsSection({ character, editing, save, notify }: { character: Character; editing: boolean; save: (changes: Record<string, unknown>) => void; notify: (message: string) => void }) {
+  const skills = character.skills || [];
+  const updateSkill = (id: string, changes: Partial<CharacterSkill>) => save({ skills: skills.map((skill) => skill.id === id ? { ...skill, ...changes } : skill) });
+  const addSkill = () => save({ skills: [...skills, { id: `skill_${Date.now().toString(36)}`, name: "新技能", description: "请填写技能用途与限制。", visualPrompt: "请填写技能发动时的颜色、形态、光效和范围。" }] });
+  const removeSkill = (id: string) => save({ skills: skills.filter((skill) => skill.id !== id) });
+  return (
+    <section className="mx-8 mb-10 mt-2 rounded-xl border border-[#ded5c8] bg-[#fffdf9] p-6">
+      <header className="mb-5 flex items-center justify-between border-b border-[#e4dacd] pb-4">
+        <div><h2 className="text-xl font-semibold text-[#30251d]">固定技能库</h2><p className="mt-1 text-sm text-[#86786c]">长期角色的能力设定与技能参考图会跟随角色保存。</p></div>
+        {editing && <button type="button" onClick={addSkill} className="flex items-center gap-2 rounded-md bg-[#c7530a] px-4 py-2 text-sm text-white"><Plus size={17} />添加技能</button>}
+      </header>
+      {skills.length ? <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">{skills.map((skill) => <SkillCard key={skill.id} skill={skill} editing={editing} update={(changes) => updateSkill(skill.id, changes)} remove={() => removeSkill(skill.id)} notify={notify} />)}</div> : <div className="rounded-lg border border-dashed border-[#d8cbbb] py-10 text-center text-[#9a8b7c]">尚未设置固定技能。{editing ? "点击“添加技能”开始建立。" : "进入编辑模式后可以添加。"}</div>}
+    </section>
+  );
+}
+
+function SkillCard({ skill, editing, update, remove, notify }: { skill: CharacterSkill; editing: boolean; update: (changes: Partial<CharacterSkill>) => void; remove: () => void; notify: (message: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const upload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) return notify("技能图片不能超过 4 MB，以便后续镜头生成可以正常引用。");
+    const reader = new FileReader();
+    reader.onload = () => { update({ referenceImage: String(reader.result) }); notify(`${skill.name}技能图片已保存。`); };
+    reader.readAsDataURL(file);
+  };
+  return <article className="grid min-h-[240px] grid-cols-[180px_1fr] gap-4 rounded-lg border border-[#e2d6c6] bg-[#fffaf2] p-4">
+    <div>
+      <div className="grid h-[170px] place-items-center overflow-hidden rounded-md border border-[#d8cbbb] bg-[#eee9e1]">{skill.referenceImage ? <img src={skill.referenceImage} alt={`${skill.name}技能图`} className="h-full w-full object-contain" /> : <Sparkles size={34} className="text-[#b7a99b]" />}</div>
+      {editing && <><button type="button" onClick={() => inputRef.current?.click()} className="mt-2 w-full rounded border border-[#c9b9a7] bg-white py-2 text-sm">{skill.referenceImage ? "替换技能图" : "上传技能图"}</button><input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={upload} /></>}
+    </div>
+    <div className="min-w-0 space-y-3">
+      {editing ? <input aria-label={`技能名称-${skill.id}`} value={skill.name} onChange={(event) => update({ name: event.target.value })} className="w-full rounded border border-[#d8cbbb] bg-white px-3 py-2 text-lg font-semibold" /> : <h3 className="text-lg font-semibold">{skill.name}</h3>}
+      <label className="block text-xs text-[#86786c]">技能说明{editing ? <textarea aria-label={`技能说明-${skill.id}`} value={skill.description} onChange={(event) => update({ description: event.target.value })} className="mt-1 min-h-16 w-full rounded border border-[#d8cbbb] bg-white p-2 text-sm text-[#30251d]" /> : <p className="mt-1 text-sm leading-6 text-[#30251d]">{skill.description}</p>}</label>
+      <label className="block text-xs text-[#86786c]">技能视觉参考{editing ? <textarea aria-label={`技能视觉参考-${skill.id}`} value={skill.visualPrompt} onChange={(event) => update({ visualPrompt: event.target.value })} className="mt-1 min-h-16 w-full rounded border border-[#d8cbbb] bg-white p-2 text-sm text-[#30251d]" /> : <p className="mt-1 text-sm leading-6 text-[#6f4c31]">{skill.visualPrompt}</p>}</label>
+      {editing && <button type="button" onClick={remove} className="flex items-center gap-1 text-sm text-red-700"><Trash2 size={15} />删除技能</button>}
+    </div>
+  </article>;
 }
 
 export default StageAssets;

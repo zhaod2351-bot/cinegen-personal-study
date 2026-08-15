@@ -8,7 +8,10 @@ export function buildStoryboardPrompt(input: StoryboardInput): string {
     .filter((asset) => selectedAssetKeys.has(`${asset.type}:${asset.id}`))
     .slice()
     .sort((left, right) => `${left.type}:${left.id}`.localeCompare(`${right.type}:${right.id}`))
-    .map((asset) => `- ${asset.type}:${asset.id} | ${asset.name} | ${asset.description}`)
+    .map((asset) => {
+      const skills = asset.characterProfile?.skills.map((skill) => `${skill.name}（${skill.description}；视觉：${skill.visualPrompt}）`).join("；");
+      return `- ${asset.type}:${asset.id} | ${asset.name} | ${asset.description}${skills ? ` | Fixed skills: ${skills}` : ""}`;
+    })
     .join("\n");
 
   const shots = normalizeStoryboardFrames(input.clip.shots)

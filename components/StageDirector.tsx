@@ -133,22 +133,26 @@ const ColumnTitle = ({ title, count }: { title: string; count: number }) => <hea
 function buildAssets(project: ProjectState, clip: DirectorClip): DirectorAsset[] {
   const selected = new Set(clip.shots.flatMap((shot) => shot.assets.map((asset) => `${asset.type}:${asset.id}`)));
   return [
-    ...(project.scriptData?.characters || []).map((item) => withReference({ id: item.id, type: "character" as const, name: item.name, description: item.visualPrompt || item.personality, tags: item.tags }, item.referenceImage)),
+    ...(project.scriptData?.characters || []).map((item) => withReferences({ id: item.id, type: "character" as const, name: item.name, description: item.visualPrompt || item.personality, tags: item.tags, characterProfile: { height: item.height || "未设定", weight: item.weight || "未设定", skills: (item.skills || []).map(({ id, name, description, visualPrompt }) => ({ id, name, description, visualPrompt })) } }, [item.referenceImage, ...(item.skills || []).map((skill) => skill.referenceImage)])),
     ...(project.scriptData?.scenes || []).map((item) => withReference({ id: item.id, type: "scene" as const, name: item.location, description: item.visualPrompt || item.atmosphere, tags: item.tags }, item.referenceImage)),
     ...(project.scriptData?.props || []).map((item) => withReference({ id: item.id, type: "prop" as const, name: item.name, description: item.visualPrompt || item.description, tags: item.tags }, item.referenceImage)),
   ].filter((asset) => selected.has(`${asset.type}:${asset.id}`));
 }
 
 function withReference(asset: DirectorAsset, dataUrl: string | undefined): DirectorAsset {
-  if (!dataUrl) return asset;
-  const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl);
-  if (!match) return asset;
+  return withReferences(asset, [dataUrl]);
+}
+
+function withReferences(asset: DirectorAsset, dataUrls: Array<string | undefined>): DirectorAsset {
+  const referenceImages = dataUrls.flatMap((dataUrl) => {
+    if (!dataUrl) return [];
+    const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl);
+    return match ? [{ mimeType: match[1] as "image/png" | "image/jpeg" | "image/webp", data: match[2] }] : [];
+  }).slice(0, 8);
+  if (!referenceImages.length) return asset;
   return {
     ...asset,
-    referenceImages: [{
-      mimeType: match[1] as "image/png" | "image/jpeg" | "image/webp",
-      data: match[2],
-    }],
+    referenceImages,
   };
 }
 
