@@ -208,7 +208,7 @@ describe("OpenAIGateway", () => {
         model: "text-model",
         max_completion_tokens: 3_500,
         reasoning_effort: "low",
-        response_format: { type: "json_object" },
+        response_format: expect.objectContaining({ type: "json_schema" }),
       }),
     ]);
   });

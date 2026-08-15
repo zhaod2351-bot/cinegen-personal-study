@@ -85,7 +85,10 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
         model: provider.model,
         prompt: buildDirectorPlanPrompt(input),
         schemaName: "director_plan",
-        preferJsonSchema: isOfficialOpenAiBaseUrl(provider.baseUrl),
+        // Modern OpenAI-compatible relays commonly forward JSON Schema even
+        // when their own hostname is used. Requiring it first prevents a
+        // valid-but-incompatible JSON object from consuming a paid request.
+        preferJsonSchema: true,
       });
       const content = response.choices[0]?.message?.content;
       if (!content) throw new Error("OpenAI returned an empty director plan");
@@ -105,7 +108,7 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
         model: provider.model,
         prompt: `${buildDirectorPlanPrompt(input)}\n\n上一次输出未通过格式校验。只修复结构、重复 ID、重复素材名称和无效引用，不添加新剧情。上一次输出：\n${JSON.stringify(invalidOutput)}`,
         schemaName: "director_plan_repair",
-        preferJsonSchema: isOfficialOpenAiBaseUrl(provider.baseUrl),
+        preferJsonSchema: true,
       });
       const content = response.choices[0]?.message?.content;
       if (!content) throw new Error("OpenAI returned an empty repaired director plan");
@@ -215,14 +218,6 @@ async function createStructuredCompletion(
       ...common,
       response_format: { type: "json_object" },
     } as Parameters<typeof client.chat.completions.create>[0]) as OpenAI.Chat.Completions.ChatCompletion;
-  }
-}
-
-function isOfficialOpenAiBaseUrl(baseUrl: string): boolean {
-  try {
-    return new URL(baseUrl).hostname.toLowerCase() === "api.openai.com";
-  } catch {
-    return false;
   }
 }
 
