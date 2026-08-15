@@ -35,6 +35,7 @@ describe("AI settings service", () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(input).toBe("/api/settings/ai");
       expect(init?.signal).toBe(controller.signal);
+      expect(init?.body).toBeUndefined();
       return jsonResponse(publicSettings);
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -62,15 +63,16 @@ describe("AI settings service", () => {
     })).resolves.toEqual(publicSettings);
   });
 
-  it("clears the selected provider API key", async () => {
+  it.each(["text", "image"] as const)("clears the %s provider API key", async (kind) => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      expect(input).toBe("/api/settings/ai/image-key");
+      expect(input).toBe(`/api/settings/ai/${kind}-key`);
       expect(init?.method).toBe("DELETE");
+      expect(init?.body).toBeUndefined();
       return jsonResponse(publicSettings);
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(clearAiKey("image")).resolves.toEqual(publicSettings);
+    await expect(clearAiKey(kind)).resolves.toEqual(publicSettings);
   });
 
   it("tests the selected provider with a literal POST body", async () => {
@@ -90,6 +92,33 @@ describe("AI settings service", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(testAiConnection("text", input)).resolves.toEqual(result);
+  });
+
+  it.each([
+    { kind: "text" as const, apiKey: undefined, label: "text with an omitted key" },
+    { kind: "text" as const, apiKey: "", label: "text with a blank key" },
+    { kind: "image" as const, apiKey: undefined, label: "image with an omitted key" },
+    { kind: "image" as const, apiKey: "   ", label: "image with a whitespace key" },
+  ])("tests $label without serializing an apiKey", async ({ kind, apiKey }) => {
+    const input = {
+      baseUrl: `https://${kind}.example.test/v1`,
+      model: `${kind}-model`,
+      ...(apiKey === undefined ? {} : { apiKey }),
+    };
+    const result = { ok: true as const, message: `${kind} connection ok` };
+    const fetchMock = vi.fn(async (request: RequestInfo | URL, init?: RequestInit) => {
+      expect(request).toBe(`/api/settings/ai/test-${kind}`);
+      expect(init?.method).toBe("POST");
+      expect(init?.headers).toEqual({ "content-type": "application/json" });
+      expect(init?.body).toBe(JSON.stringify({
+        baseUrl: input.baseUrl,
+        model: input.model,
+      }));
+      return jsonResponse(result);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(testAiConnection(kind, input)).resolves.toEqual(result);
   });
 
   it("surfaces only the sanitized backend error from failed responses", async () => {
