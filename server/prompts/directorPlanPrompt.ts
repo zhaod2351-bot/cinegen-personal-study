@@ -22,6 +22,8 @@ export function buildDirectorPlanPrompt(input: DirectorPlanInput): string {
     "4. 镜头资产只能通过 type + id 引用，不能只使用名称；同名不同类别是不同资产。",
     "5. 视觉提示词必须服从项目画风，并明确人物、场景、构图、光线和情绪。",
     "6. 不添加锁定剧本没有依据的重要角色、道具或剧情结局。",
+    "7. 全片总镜头数限制在 8–12 个；用较长的单镜头覆盖目标时长，不得为了凑时长拆出大量短镜头。",
+    "8. summary、素材 description、镜头 action 和 visualPrompt 必须简洁，避免重复剧本原文。",
     "",
     "只能输出 JSON，不要 Markdown 代码块、解释、前言或结语。",
   ].join("\n");

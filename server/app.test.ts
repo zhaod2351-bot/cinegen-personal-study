@@ -448,14 +448,14 @@ describe("local AI API", () => {
   });
 
   it.each([
-    ["text", "/api/director-plans", directorPlan, lockedScript, "Text provider request failed"],
+    ["text", "/api/director-plans", directorPlan, lockedScript, "Text provider request failed (HTTP 401)"],
     ["image", "/api/storyboards", {
       ...storyboard,
       clip: {
         ...storyboard.clip,
         shots: [{ ...storyboard.clip.shots[0], visualPrompt: imagePrompt }],
       },
-    }, imagePrompt, "Image provider request failed"],
+    }, imagePrompt, "Image provider request failed (HTTP 401)"],
   ])("keeps %s provider failures secret in jobs, disk, and API responses", async (
     _kind,
     route,

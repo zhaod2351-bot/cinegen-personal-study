@@ -136,12 +136,12 @@ describe("OpenAIGateway", () => {
   });
 
   it.each([
-    ["text", "Text provider request failed", (gateway: OpenAIGateway) => gateway.testText({
+    ["text", "Text provider request failed (HTTP 401)", (gateway: OpenAIGateway) => gateway.testText({
       baseUrl: settings.text.baseUrl,
       model: settings.text.model,
       apiKey: "text-key",
     })],
-    ["image", "Image provider request failed", (gateway: OpenAIGateway) => gateway.testImage({
+    ["image", "Image provider request failed (HTTP 401)", (gateway: OpenAIGateway) => gateway.testImage({
       baseUrl: settings.image.baseUrl,
       model: settings.image.model,
       apiKey: "image-key",
@@ -206,7 +206,8 @@ describe("OpenAIGateway", () => {
     expect(completionInputs).toEqual([
       expect.objectContaining({
         model: "text-model",
-        max_completion_tokens: 6_000,
+        max_completion_tokens: 3_500,
+        reasoning_effort: "low",
         response_format: { type: "json_object" },
       }),
     ]);
@@ -241,7 +242,7 @@ describe("OpenAIGateway", () => {
     });
     const gateway = new OpenAIGateway(async () => settings, () => ({ chat: { completions: { create } } } as unknown as OpenAI));
 
-    await expect(gateway.createDirectorPlan(directorInput)).rejects.toMatchObject({ message: "Text provider request failed", status: 401 });
+    await expect(gateway.createDirectorPlan(directorInput)).rejects.toMatchObject({ message: "Text provider request failed (HTTP 401)", status: 401 });
     expect(create).toHaveBeenCalledTimes(1);
   });
 

@@ -25,8 +25,14 @@ export interface AiConnectionTester {
 export type OpenAIClientFactory = (options: { apiKey: string; baseURL: string; maxRetries: 0 }) => OpenAI;
 
 function sanitizedProviderError(kind: "Text" | "Image", error: unknown): Error & { status?: number } {
-  const sanitized = new Error(`${kind} provider request failed`) as Error & { status?: number };
   const status = (error as { status?: unknown })?.status;
+  const name = (error as { name?: unknown })?.name;
+  const suffix = typeof status === "number"
+    ? ` (HTTP ${status})`
+    : typeof name === "string" && /timeout/i.test(name)
+      ? " (timeout)"
+      : " (network or relay error)";
+  const sanitized = new Error(`${kind} provider request failed${suffix}`) as Error & { status?: number };
   if (typeof status === "number") sanitized.status = status;
   return sanitized;
 }
@@ -180,7 +186,8 @@ async function createStructuredCompletion(
   const common = {
     model: input.model,
     stream: false as const,
-    max_completion_tokens: 6_000,
+    max_completion_tokens: 3_500,
+    reasoning_effort: "low" as const,
     messages: [{ role: "user" as const, content: input.prompt }],
   };
   if (!input.preferJsonSchema) {
