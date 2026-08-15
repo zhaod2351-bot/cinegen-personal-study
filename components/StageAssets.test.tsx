@@ -7,6 +7,9 @@ import StageAssets from "./StageAssets";
 const createStoryboardJob = vi.fn();
 const pollAiJob = vi.fn();
 const localApiFetch = vi.fn();
+const getFixedCharacters = vi.fn();
+const saveCharacterToFixedLibrary = vi.fn();
+const deleteFixedCharacter = vi.fn();
 
 vi.mock("../services/aiApiService", () => ({
   createStoryboardJob: (...args: unknown[]) => createStoryboardJob(...args),
@@ -14,6 +17,11 @@ vi.mock("../services/aiApiService", () => ({
 }));
 vi.mock("../services/localApiSession", () => ({
   localApiFetch: (...args: unknown[]) => localApiFetch(...args),
+}));
+vi.mock("../services/storageService", () => ({
+  getFixedCharacters: (...args: unknown[]) => getFixedCharacters(...args),
+  saveCharacterToFixedLibrary: (...args: unknown[]) => saveCharacterToFixedLibrary(...args),
+  deleteFixedCharacter: (...args: unknown[]) => deleteFixedCharacter(...args),
 }));
 
 const project = {
@@ -39,6 +47,9 @@ describe("StageAssets image generation", () => {
     createStoryboardJob.mockReset().mockResolvedValue({ jobId: "image-job-1", status: "queued" });
     pollAiJob.mockReset().mockResolvedValue({ status: "completed", result: { imagePath: "asset.webp" } });
     localApiFetch.mockReset().mockResolvedValue(new Response(new Blob(["image"], { type: "image/webp" }), { status: 200 }));
+    getFixedCharacters.mockReset().mockResolvedValue([]);
+    saveCharacterToFixedLibrary.mockReset();
+    deleteFixedCharacter.mockReset().mockResolvedValue(undefined);
   });
 
   it("starts a real image job from the regenerate action", async () => {
@@ -187,5 +198,24 @@ describe("StageAssets image generation", () => {
     expect(updateProject).toHaveBeenCalledWith(expect.objectContaining({
       scriptData: expect.objectContaining({ characters: [expect.objectContaining({ skills: [expect.objectContaining({ referenceImage: undefined })] })] }),
     }));
+  });
+
+  it("saves the complete character to the fixed library from the more menu", async () => {
+    const saved = { id: "fixed-1", character: { id: "character-1", name: "苏林", personality: "果断的冒险者", variations: [], skills: [] }, sourceProjectId: "project-1", sourceProjectTitle: "地球进化", savedAt: 1 };
+    saveCharacterToFixedLibrary.mockResolvedValue(saved);
+    render(<StageAssets project={project} updateProject={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "更多操作" }));
+    fireEvent.click(screen.getByRole("button", { name: "加入固定资产库" }));
+    await waitFor(() => expect(saveCharacterToFixedLibrary).toHaveBeenCalledWith(expect.objectContaining({ name: "苏林" }), "project-1", "地球进化"));
+  });
+
+  it("imports a fixed character with skills and images into the current story", async () => {
+    getFixedCharacters.mockResolvedValue([{ id: "fixed-fox", character: { id: "old", name: "长期主角", personality: "主角", variations: [], referenceImage: "data:image/png;base64,aW1hZ2U=", skills: [{ id: "skill-1", name: "青芒", description: "刀芒", visualPrompt: "青光", referenceImage: "data:image/png;base64,c2tpbGw=" }] }, sourceProjectId: "old-project", sourceProjectTitle: "上一集", savedAt: 1 }]);
+    const updateProject = vi.fn();
+    render(<StageAssets project={project} updateProject={updateProject} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "固定资产库（1）" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "固定资产库（1）" }));
+    fireEvent.click(screen.getByRole("button", { name: "导入当前剧情" }));
+    expect(updateProject).toHaveBeenCalledWith(expect.objectContaining({ scriptData: expect.objectContaining({ characters: expect.arrayContaining([expect.objectContaining({ name: "长期主角", referenceImage: "data:image/png;base64,aW1hZ2U=", skills: [expect.objectContaining({ name: "青芒", referenceImage: "data:image/png;base64,c2tpbGw=" })] })]) }) }));
   });
 });

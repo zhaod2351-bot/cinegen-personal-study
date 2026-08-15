@@ -19,7 +19,8 @@ import {
 import type { DirectorAsset, DirectorClip } from "../server/types";
 import { createStoryboardJob, pollAiJob } from "../services/aiApiService";
 import { localApiFetch } from "../services/localApiSession";
-import { Character, CharacterSkill, ProjectState, PropAsset, Scene } from "../types";
+import { deleteFixedCharacter, getFixedCharacters, saveCharacterToFixedLibrary } from "../services/storageService";
+import { Character, CharacterSkill, FixedCharacterAsset, ProjectState, PropAsset, Scene } from "../types";
 
 type AssetKind = "character" | "scene" | "prop";
 type AssetItem = Character | Scene | PropAsset;
@@ -56,6 +57,8 @@ const StageAssets: React.FC<Props> = ({
   const [notice, setNotice] = useState("");
   const [generatingAssets, setGeneratingAssets] = useState<Set<string>>(() => new Set());
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [fixedLibraryOpen, setFixedLibraryOpen] = useState(false);
+  const [fixedCharacters, setFixedCharacters] = useState<FixedCharacterAsset[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const resumedJobs = useRef<Set<string>>(new Set());
 
@@ -74,6 +77,10 @@ const StageAssets: React.FC<Props> = ({
       });
     }
   }, [project.id]);
+
+  useEffect(() => {
+    void getFixedCharacters().then(setFixedCharacters).catch(() => setFixedCharacters([]));
+  }, []);
 
   if (!data)
     return <div className="director-empty">请先完成剧本分析或导入式剧本。</div>;
@@ -302,6 +309,23 @@ const StageAssets: React.FC<Props> = ({
     setMenuOpen(false);
     notify(`${typeName}已删除。`);
   };
+  const addToFixedLibrary = async () => {
+    if (!selected || !isCharacter) return;
+    const saved = await saveCharacterToFixedLibrary(selected as Character, project.id, project.title);
+    setFixedCharacters((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
+    setMenuOpen(false);
+    notify(`“${saved.character.name}”已加入固定资产库，外观、技能和技能图片均已保存。`);
+  };
+  const importFixedCharacter = (fixed: FixedCharacterAsset) => {
+    const existing = data.characters.find((item) => item.name === fixed.character.name);
+    const imported = structuredClone(fixed.character);
+    imported.id = existing?.id || `character_fixed_${fixed.id.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+    updateProject({ scriptData: { ...data, characters: existing ? data.characters.map((item) => item.id === existing.id ? imported : item) : [...data.characters, imported] } });
+    setKind("character");
+    setSelectedId(imported.id);
+    setFixedLibraryOpen(false);
+    notify(`“${imported.name}”已从固定资产库加入当前剧情。`);
+  };
   const onUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -436,6 +460,7 @@ const StageAssets: React.FC<Props> = ({
               >
                 全部（{allItems.length}）
               </button>
+              {isCharacter && <button onClick={() => setFixedLibraryOpen(true)}>固定资产库（{fixedCharacters.length}）</button>}
             </div>
             <div>
               <button
@@ -546,10 +571,7 @@ const StageAssets: React.FC<Props> = ({
                     </button>
                     {menuOpen && (
                       <div className="asset-more-menu">
-                        <button onClick={() => fileRef.current?.click()}>
-                          <ImageUp size={16} />
-                          替换参考图
-                        </button>
+                        {isCharacter ? <button onClick={() => void addToFixedLibrary()}><User size={16} />加入固定资产库</button> : <button onClick={() => fileRef.current?.click()}><ImageUp size={16} />替换参考图</button>}
                         <button className="danger" onClick={removeAsset}>
                           <Trash2 size={16} />
                           删除资产
@@ -780,6 +802,14 @@ const StageAssets: React.FC<Props> = ({
             <img src={selected.referenceImage} alt={`${name}参考图大图`} className="max-h-[88vh] max-w-[88vw] rounded-lg object-contain shadow-2xl" />
             <button aria-label="关闭大图" onClick={() => setPreviewOpen(false)} className="absolute -right-4 -top-4 rounded-full bg-white p-2 text-[#30251d] shadow-lg"><X size={20} /></button>
           </div>
+        </div>
+      )}
+      {fixedLibraryOpen && (
+        <div role="dialog" aria-label="固定资产库" className="fixed inset-0 z-[155] grid place-items-center bg-black/55 p-8" onClick={() => setFixedLibraryOpen(false)}>
+          <section className="max-h-[86vh] w-full max-w-5xl overflow-auto rounded-xl bg-[#fffaf3] p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <header className="mb-5 flex items-start justify-between border-b border-[#ded5c8] pb-4"><div><h2 className="text-2xl font-semibold">固定角色资产库</h2><p className="mt-1 text-sm text-[#86786c]">跨剧情保存人物外观、档案、技能和技能图片。</p></div><button aria-label="关闭固定资产库" onClick={() => setFixedLibraryOpen(false)}><X size={22} /></button></header>
+            {fixedCharacters.length ? <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{fixedCharacters.map((fixed) => <article key={fixed.id} className="grid grid-cols-[120px_1fr] gap-4 rounded-lg border border-[#ded5c8] bg-white p-4"><div className="grid h-32 place-items-center overflow-hidden rounded border bg-[#eee9e1]">{fixed.character.referenceImage ? <img src={fixed.character.referenceImage} alt={`${fixed.character.name}固定资产图`} className="h-full w-full object-contain" /> : <User size={32} className="text-[#ad9e90]" />}</div><div className="min-w-0"><h3 className="text-xl font-semibold">{fixed.character.name}</h3><p className="mt-1 line-clamp-2 text-sm text-[#75685d]">{fixed.character.personality}</p><p className="mt-2 text-xs text-[#9a8b7c]">{fixed.character.height || "身高未设定"} · {fixed.character.weight || "体重未设定"} · 固定技能 {(fixed.character.skills || []).length} 个</p><p className="mt-1 text-xs text-[#9a8b7c]">来源：{fixed.sourceProjectTitle}</p><div className="mt-4 flex gap-2"><button onClick={() => importFixedCharacter(fixed)} className="rounded bg-[#c7530a] px-3 py-2 text-sm text-white">导入当前剧情</button><button onClick={() => { if (!window.confirm(`确定从固定资产库删除“${fixed.character.name}”吗？当前剧情中的人物不会受影响。`)) return; void deleteFixedCharacter(fixed.id).then(() => setFixedCharacters((current) => current.filter((item) => item.id !== fixed.id))); }} className="rounded border border-red-200 px-3 py-2 text-sm text-red-700">从固定库删除</button></div></div></article>)}</div> : <div className="py-16 text-center text-[#9a8b7c]">固定资产库还是空的。请从人物右上角菜单选择“加入固定资产库”。</div>}
+          </section>
         </div>
       )}
     </section>

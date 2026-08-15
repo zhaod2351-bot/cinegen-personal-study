@@ -1,8 +1,9 @@
-import { ProjectState } from "../types";
+import { FixedCharacterAsset, ProjectState, type Character } from "../types";
 
 const DB_NAME = "CineGenDB";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = "projects";
+const FIXED_ASSET_STORE = "fixedAssets";
 const CHANNEL_NAME = "cinegen-project-sync";
 
 type ProjectSyncEvent = {
@@ -26,9 +27,52 @@ const openDB = (): Promise<IDBDatabase> => {
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: "id" });
       }
+      if (!db.objectStoreNames.contains(FIXED_ASSET_STORE)) {
+        db.createObjectStore(FIXED_ASSET_STORE, { keyPath: "id" });
+      }
     };
   });
 };
+
+export const getFixedCharacters = async (): Promise<FixedCharacterAsset[]> => {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(FIXED_ASSET_STORE, "readonly").objectStore(FIXED_ASSET_STORE).getAll();
+    request.onsuccess = () => resolve((request.result as FixedCharacterAsset[]).sort((left, right) => right.savedAt - left.savedAt));
+    request.onerror = () => reject(request.error);
+  });
+};
+
+export const saveCharacterToFixedLibrary = async (character: Character, sourceProjectId: string, sourceProjectTitle: string): Promise<FixedCharacterAsset> => {
+  const existing = (await getFixedCharacters()).find((item) => normalizeFixedName(item.character.name) === normalizeFixedName(character.name));
+  const fixed: FixedCharacterAsset = {
+    id: existing?.id || `fixed_character_${crypto.randomUUID()}`,
+    character: structuredClone(character),
+    sourceProjectId,
+    sourceProjectTitle,
+    savedAt: Date.now(),
+  };
+  const db = await openDB();
+  await new Promise<void>((resolve, reject) => {
+    const request = db.transaction(FIXED_ASSET_STORE, "readwrite").objectStore(FIXED_ASSET_STORE).put(fixed);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+  return fixed;
+};
+
+export const deleteFixedCharacter = async (id: string): Promise<void> => {
+  const db = await openDB();
+  await new Promise<void>((resolve, reject) => {
+    const request = db.transaction(FIXED_ASSET_STORE, "readwrite").objectStore(FIXED_ASSET_STORE).delete(id);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+};
+
+function normalizeFixedName(value: string): string {
+  return value.normalize("NFKC").replace(/\s+/g, "").toLocaleLowerCase();
+}
 
 export const saveProjectToDB = async (project: ProjectState): Promise<void> => {
   const db = await openDB();

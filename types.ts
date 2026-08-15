@@ -34,6 +34,14 @@ export interface Character {
   fieldProvenance?: AssetFieldProvenance;
 }
 
+export interface FixedCharacterAsset {
+  id: string;
+  character: Character;
+  sourceProjectId: string;
+  sourceProjectTitle: string;
+  savedAt: number;
+}
+
 export interface Scene {
   id: string;
   location: string;
