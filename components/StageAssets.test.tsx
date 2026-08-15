@@ -170,4 +170,22 @@ describe("StageAssets image generation", () => {
       scriptData: expect.objectContaining({ characters: [expect.objectContaining({ skills: [expect.objectContaining({ name: "新技能" })] })] }),
     }));
   });
+
+  it("supports preview, download and deletion for a saved skill reference image", () => {
+    const configured = structuredClone(project) as unknown as { scriptData: { characters: Array<Record<string, unknown>> } };
+    configured.scriptData.characters[0].skills = [{ id: "skill-1", name: "青芒", description: "三道刀芒", visualPrompt: "青色弧光", referenceImage: "data:image/png;base64,aW1hZ2U=" }];
+    const updateProject = vi.fn();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<StageAssets project={configured as never} updateProject={updateProject} />);
+
+    expect(screen.getByRole("link", { name: "下载保存" }).getAttribute("download")).toBe("青芒-参考图.png");
+    fireEvent.click(screen.getByRole("button", { name: "查看大图" }));
+    expect(screen.getByRole("dialog", { name: "青芒技能图预览" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "关闭技能图" }));
+    fireEvent.click(screen.getByRole("button", { name: "编辑" }));
+    fireEvent.click(screen.getByRole("button", { name: "删除图片" }));
+    expect(updateProject).toHaveBeenCalledWith(expect.objectContaining({
+      scriptData: expect.objectContaining({ characters: [expect.objectContaining({ skills: [expect.objectContaining({ referenceImage: undefined })] })] }),
+    }));
+  });
 });

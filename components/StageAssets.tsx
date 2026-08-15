@@ -842,6 +842,7 @@ function CharacterSkillsSection({ character, editing, save, notify }: { characte
 
 function SkillCard({ skill, editing, update, remove, notify }: { skill: CharacterSkill; editing: boolean; update: (changes: Partial<CharacterSkill>) => void; remove: () => void; notify: (message: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const upload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -852,8 +853,16 @@ function SkillCard({ skill, editing, update, remove, notify }: { skill: Characte
   };
   return <article className="grid min-h-[360px] grid-cols-[180px_1fr] gap-4 rounded-lg border border-[#e2d6c6] bg-[#fffaf2] p-4">
     <div>
-      <div className="grid h-[170px] place-items-center overflow-hidden rounded-md border border-[#d8cbbb] bg-[#eee9e1]">{skill.referenceImage ? <img src={skill.referenceImage} alt={`${skill.name}技能图`} className="h-full w-full object-contain" /> : <Sparkles size={34} className="text-[#b7a99b]" />}</div>
-      {editing && <><button type="button" onClick={() => inputRef.current?.click()} className="mt-2 w-full rounded border border-[#c9b9a7] bg-white py-2 text-sm">{skill.referenceImage ? "替换技能图" : "上传技能图"}</button><input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={upload} /></>}
+      <div className="group relative grid h-[170px] place-items-center overflow-hidden rounded-md border border-[#d8cbbb] bg-[#eee9e1]">
+        {skill.referenceImage ? <img src={skill.referenceImage} alt={`${skill.name}技能图`} className="h-full w-full object-contain" /> : <Sparkles size={34} className="text-[#b7a99b]" />}
+        <div className="absolute inset-0 grid grid-cols-2 content-center gap-2 bg-black/60 p-3 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
+          {skill.referenceImage && <button type="button" onClick={() => setPreviewOpen(true)} className="flex items-center justify-center gap-1 rounded border border-white/70 bg-black/20 px-1 py-2 text-xs text-white"><Eye size={15} />查看大图</button>}
+          {skill.referenceImage && <a href={skill.referenceImage} download={`${skill.name || "技能"}-参考图.${skillImageExtension(skill.referenceImage)}`} className="flex items-center justify-center gap-1 rounded border border-white/70 bg-black/20 px-1 py-2 text-xs text-white"><Download size={15} />下载保存</a>}
+          {editing && <button type="button" onClick={() => inputRef.current?.click()} className="flex items-center justify-center gap-1 rounded border border-white/70 bg-black/20 px-1 py-2 text-xs text-white"><ImageUp size={15} />{skill.referenceImage ? "上传 / 替换" : "上传技能图"}</button>}
+          {editing && skill.referenceImage && <button type="button" onClick={() => { if (!window.confirm(`确定删除“${skill.name}”的技能图片吗？技能文字资料会保留。`)) return; update({ referenceImage: undefined }); notify("技能图片已删除，技能文字资料仍然保留。"); }} className="flex items-center justify-center gap-1 rounded border border-red-300 bg-red-900/50 px-1 py-2 text-xs text-white"><Trash2 size={15} />删除图片</button>}
+        </div>
+      </div>
+      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={upload} />
     </div>
     <div className="min-w-0 space-y-3">
       {editing ? <input aria-label={`技能名称-${skill.id}`} value={skill.name} onChange={(event) => update({ name: event.target.value })} className="w-full rounded border border-[#d8cbbb] bg-white px-3 py-2 text-lg font-semibold" /> : <h3 className="text-lg font-semibold">{skill.name}</h3>}
@@ -861,7 +870,14 @@ function SkillCard({ skill, editing, update, remove, notify }: { skill: Characte
     </div>
     <label className="col-span-2 block text-xs text-[#86786c]">技能说明（效果、机制、限制与冷却）{editing ? <textarea aria-label={`技能说明-${skill.id}`} value={skill.description} onChange={(event) => update({ description: event.target.value })} className="mt-1 min-h-32 w-full resize-y rounded border border-[#d8cbbb] bg-white p-3 text-sm leading-6 text-[#30251d]" /> : <p className="mt-1 min-h-24 whitespace-pre-wrap rounded border border-[#eadfd2] bg-white/70 p-3 text-sm leading-6 text-[#30251d]">{skill.description}</p>}</label>
     {editing && <button type="button" onClick={remove} className="col-span-2 flex items-center gap-1 justify-self-start text-sm text-red-700"><Trash2 size={15} />删除技能</button>}
+    {previewOpen && skill.referenceImage && <div role="dialog" aria-label={`${skill.name}技能图预览`} className="fixed inset-0 z-[160] grid place-items-center bg-black/75 p-8" onClick={() => setPreviewOpen(false)}><div className="relative max-h-full max-w-full" onClick={(event) => event.stopPropagation()}><img src={skill.referenceImage} alt={`${skill.name}技能图大图`} className="max-h-[88vh] max-w-[88vw] rounded-lg object-contain shadow-2xl" /><button type="button" aria-label="关闭技能图" onClick={() => setPreviewOpen(false)} className="absolute -right-4 -top-4 rounded-full bg-white p-2 text-[#30251d] shadow-lg"><X size={20} /></button></div></div>}
   </article>;
+}
+
+function skillImageExtension(dataUrl: string): string {
+  if (dataUrl.startsWith("data:image/jpeg")) return "jpg";
+  if (dataUrl.startsWith("data:image/webp")) return "webp";
+  return "png";
 }
 
 export default StageAssets;
