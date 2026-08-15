@@ -175,13 +175,13 @@ const StageScript: React.FC<Props> = ({ project, updateProject, onOpenAssets }) 
               AI 将先润色剧本，再输出人物、场景、道具、剪辑和镜头。确认后作为资产库与导演台的数据源。
             </div>
           </aside>
-          <main className="min-w-0 flex-1 overflow-auto p-10">
-            <div className="mx-auto flex h-full max-w-[1050px] flex-col rounded-xl border border-[#ded5c8] bg-white p-10 shadow-sm">
+          <main className="min-h-0 min-w-0 flex-1 overflow-hidden p-10">
+            <div className="mx-auto flex h-full min-h-0 max-w-[1050px] flex-col overflow-hidden rounded-xl border border-[#ded5c8] bg-white p-10 shadow-sm">
               <div className="mb-5 flex items-center justify-between border-b border-[#e8dfd2] pb-5">
                 <h1 className="text-2xl font-semibold">剧本</h1>
                 <span className="text-xs text-[#9b8c7e]">{script.length} 字</span>
               </div>
-              <textarea aria-label="剧本内容" value={script} onChange={(event) => setScript(event.target.value)} className="min-h-[420px] flex-1 resize-none bg-transparent font-serif text-[17px] leading-9 outline-none" placeholder="请输入 1-1 剧本…" />
+              <textarea aria-label="剧本内容" value={script} onChange={(event) => setScript(event.target.value)} className="min-h-0 flex-1 resize-none overflow-y-auto bg-transparent pb-12 font-serif text-[17px] leading-9 outline-none" placeholder="请输入 1-1 剧本…" />
             </div>
           </main>
         </div>
