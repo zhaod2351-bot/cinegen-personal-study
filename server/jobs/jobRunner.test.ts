@@ -97,6 +97,7 @@ describe("JobRunner", () => {
     expect(repairs).toBe(0);
     expect(await store.get(job.id)).toMatchObject({
       status: "failed",
+      result: { invalid: true },
       error: "AI 已返回结果，但格式不兼容；为避免重复扣费，系统未自动发起修复请求",
     });
   });

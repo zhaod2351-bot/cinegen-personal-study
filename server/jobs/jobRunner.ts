@@ -114,6 +114,10 @@ export class JobRunner {
       try {
         plan = validateDirectorPlan(raw);
       } catch {
+        // Preserve the already-paid provider output locally. It contains no
+        // API key and lets us add deterministic compatibility adapters without
+        // asking the user to purchase another blind diagnostic request.
+        await this.options.store.update<DirectorPlanInput, unknown>(id, { result: raw });
         // A repair is another full, billable provider request. Some relays
         // allow only one request per minute and low-balance accounts may be
         // charged for the first response before rejecting the repair. Keep
