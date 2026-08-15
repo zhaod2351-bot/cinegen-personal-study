@@ -213,8 +213,8 @@ describe("StageAssets image generation", () => {
     getFixedCharacters.mockResolvedValue([{ id: "fixed-fox", character: { id: "old", name: "长期主角", personality: "主角", variations: [], referenceImage: "data:image/png;base64,aW1hZ2U=", skills: [{ id: "skill-1", name: "青芒", description: "刀芒", visualPrompt: "青光", referenceImage: "data:image/png;base64,c2tpbGw=" }] }, sourceProjectId: "old-project", sourceProjectTitle: "上一集", savedAt: 1 }]);
     const updateProject = vi.fn();
     render(<StageAssets project={project} updateProject={updateProject} />);
-    await waitFor(() => expect(screen.getByRole("button", { name: "固定资产库（1）" })).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: "固定资产库（1）" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "固定库 1" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "固定库 1" }));
     fireEvent.click(screen.getByRole("button", { name: "导入当前剧情" }));
     expect(updateProject).toHaveBeenCalledWith(expect.objectContaining({ scriptData: expect.objectContaining({ characters: expect.arrayContaining([expect.objectContaining({ name: "长期主角", referenceImage: "data:image/png;base64,aW1hZ2U=", skills: [expect.objectContaining({ name: "青芒", referenceImage: "data:image/png;base64,c2tpbGw=" })] })]) }) }));
   });

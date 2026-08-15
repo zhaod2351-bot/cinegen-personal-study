@@ -452,15 +452,15 @@ const StageAssets: React.FC<Props> = ({
                 onClick={() => switchScope("episode")}
                 className={scope === "episode" ? "selected" : ""}
               >
-                本集（{allItems.filter(isLinkedToEpisode).length}）
+                本集 {allItems.filter(isLinkedToEpisode).length}
               </button>
               <button
                 onClick={() => switchScope("all")}
                 className={scope === "all" ? "selected" : ""}
               >
-                全部（{allItems.length}）
+                全部 {allItems.length}
               </button>
-              {isCharacter && <button onClick={() => setFixedLibraryOpen(true)}>固定资产库（{fixedCharacters.length}）</button>}
+              {isCharacter && <button onClick={() => setFixedLibraryOpen(true)}>固定库 {fixedCharacters.length}</button>}
             </div>
             <div>
               <button
