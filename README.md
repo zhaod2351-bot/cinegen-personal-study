@@ -1,6 +1,6 @@
 # CineGen AI Director (AI 漫剧工场)
 
-> 个人学习版已加入 OpenAI 本地自动化流程：GPT 剧本分析与导演台拆解、`gpt-image-2` 六格故事板生成、失败重试、版本保留，以及按中文项目/场次目录保存到 D 盘。配置说明见 [OpenAI 本地自动化接入](./docs/openai-local-setup.md)。
+> 个人学习版支持通过本机服务配置 OpenAI 兼容的文本与图片模型：GPT 剧本分析与导演台拆解、图片故事板生成、失败重试、版本保留，以及按中文项目/场次目录保存到 D 盘。设置、DPAPI 安全边界和本地启动方式见 [OpenAI 兼容服务本地接入](./docs/openai-local-setup.md)。GitHub Pages 仅托管静态前端，不能托管保存/测试 Key 所需的 Express API 或 DPAPI 服务。
 
 > 同时欢迎试用一站式的漫剧制作平台 [AniKuku AI 漫剧制作平台](https://anikuku.com/?github)  - use `CINEGEN50OFF` checkout for 50%OFF。
 > **AniKuku 提供的优惠码，首次购买，结账时使用 `CINEGEN50OFF` 可以获得 50% 折扣（5 折）**
@@ -10,7 +10,7 @@
 
 **CineGen AI Director** 是一个专为 **AI 漫剧 (Motion Comics)**、**动态漫画**及**影视分镜 (Animatic)** 设计的专业生产力工具。
 
-它摒弃了传统的“抽卡式”生成，采用 **"Script-to-Asset-to-Keyframe"** 的工业化工作流。通过深度集成 Gemini 2.5 Flash 和 Veo 模型，实现了对角色一致性、场景连续性以及镜头运动的精准控制。对动态漫、解说漫均可以有很好表现效果。
+它摒弃了传统的“抽卡式”生成，采用 **"Script-to-Asset-to-Keyframe"** 的工业化工作流。通过本机可配置的文本与图片模型，帮助维持角色一致性、场景连续性和镜头规划；视频模型入口目前仍未配置。
 
 > **工业级 AI 漫剧与视频生成工作台**
 > *Industrial AI Motion Comic & Video Workbench*
@@ -21,7 +21,7 @@
 
 传统的 Text-to-Video 往往难以控制具体的运镜和起止画面。CineGen 引入了动画制作中的 **关键帧 (Keyframe)** 概念：
 1.  **先画后动**：先生成精准的起始帧 (Start) 和结束帧 (End)。
-2.  **插值生成**：利用 Veo 模型在两帧之间生成平滑的视频过渡。
+2.  **镜头规划**：以关键帧和镜头描述组织后续制作；视频模型将在未来版本接入。
 3.  **资产约束**：所有画面生成均受到“角色定妆照”和“场景概念图”的强约束，杜绝人物变形。
 
 ## 核心功能模块
@@ -43,29 +43,27 @@
     *   **Start Frame**: 生成镜头的起始画面（强一致性）。
     *   **End Frame**: (可选) 定义镜头结束时的状态（如：人物回头、光线变化）。
 *   **上下文感知**：AI 生成镜头时，会自动读取 Context（当前场景图 + 当前角色特定服装图），彻底解决“不连戏”问题。
-*   **Veo 视频生成**：支持 Image-to-Video 和 Keyframe Interpolation 两种模式。
+*   **视频生成**：入口预留为未来扩展，本版本尚未配置可用的视频模型。
 
 ### Phase 04: 成片与导出 (Export)
-*   **实时预览**：时间轴形式预览生成的漫剧片段。
-*   **渲染追踪**：实时监控 API 渲染进度。
-*   **资产导出**：支持导出所有高清关键帧和 MP4 片段，方便导入 Premiere/After Effects 进行后期剪辑。
+*   **实时预览**：时间轴形式预览当前项目素材。
+*   **资产导出**：支持导出已生成的关键帧，方便导入 Premiere/After Effects 进行后期剪辑。
 
 ## 技术架构
 
 *   **Frontend**: React 19, Tailwind CSS (Sony Industrial Design Style)
-*   **AI Models**:
-    *   **Logic/Text**: `gemini-2.5-flash` (高智商剧本分析)
-    *   **Vision**: `gemini-2.5-flash-image` (Nano Banana - 高速绘图)
-    *   **Video**: `veo-3.1-fast-generate-preview` (首尾帧视频插值)
-*   **Storage**: IndexedDB (本地浏览器数据库，数据隐私安全，无后端依赖)
+*   **Local API**: Express（默认仅监听 `127.0.0.1`）
+*   **AI Models**: 独立可配置的 OpenAI 兼容文本和图片服务；视频模型暂未配置
+*   **Secret Storage**: Windows DPAPI `CurrentUser` 加密的本机设置文件；浏览器与构建产物不保存 API Key
+*   **Project Storage**: 本地浏览器项目数据与本机素材目录
 
 ## 快速开始
 
-1.  **配置密钥**: 启动应用，输入 Google Gemini API Key (需开通 GCP 结算以使用 Veo)。
-2.  **故事输入**: 在 Phase 01 输入你的故事创意，点击“生成分镜脚本”。
-3.  **美术设定**: 进入 Phase 02，生成主角定妆照和核心场景图。
-4.  **分镜制作**: 进入 Phase 03，逐个生成镜头的关键帧。
-5.  **动效生成**: 确认关键帧无误后，批量生成视频片段。
+1.  **启动本机服务**: 执行 `npm install` 和 `npm run dev:local`，然后打开 `http://localhost:5173`。
+2.  **独立配置服务**: 在“系统设置”中分别保存文本和图片服务的 Base URL、模型名与 API Key；可先测试连接。不要把 Key 放入浏览器或项目代码。
+3.  **故事输入**: 在 Phase 01 输入你的故事创意，点击“AI 剧本分析”。
+4.  **美术设定与分镜制作**: 确认剧本后，进入导演工作台生成和管理故事板版本。
+5.  **视频入口**: 本版本尚未配置视频生成服务，相关入口为未来扩展。
 
 ## License / 许可证
 
