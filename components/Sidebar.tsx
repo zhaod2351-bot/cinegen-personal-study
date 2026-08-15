@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, Users, Clapperboard, Film, Settings, ChevronLeft, Aperture, FileInput } from 'lucide-react';
+import { FileText, Users, Clapperboard, Film, Settings, ChevronLeft, Aperture } from 'lucide-react';
 
 interface SidebarProps {
   currentStage: string;
@@ -12,7 +12,6 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ currentStage, setStage, onExit, onOpenSettings, projectName }) => {
   const navItems = [
     { id: 'script', label: '剧本与故事', icon: FileText, sub: '第一步' },
-    { id: 'import', label: '导入式剧本', icon: FileInput, sub: '导入' },
     { id: 'assets', label: '设计与资产', icon: Users, sub: '第二步' },
     { id: 'director', label: '导演工作台', icon: Clapperboard, sub: '第三步' },
     { id: 'export', label: '成片与导出', icon: Film, sub: '第四步' },

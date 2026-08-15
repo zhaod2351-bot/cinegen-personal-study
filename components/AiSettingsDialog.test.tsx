@@ -46,6 +46,7 @@ describe("AiSettingsDialog", () => {
     render(<AiSettingsDialog onClose={vi.fn()} />);
 
     expect(screen.getByRole("dialog", { name: "AI 设置中心" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "隐藏功能" })).toHaveTextContent("导入式剧本");
     expect(await screen.findByRole("group", { name: "大语言模型" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "图片模型" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "视频模型" })).toHaveAttribute("aria-disabled", "true");

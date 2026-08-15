@@ -386,6 +386,14 @@ const AiSettingsDialog: React.FC<AiSettingsDialogProps> = ({ onClose }) => {
             </div>
           </fieldset>
 
+          <section aria-label="隐藏功能" className="rounded-2xl border border-[#d7e2e7] bg-white p-5">
+            <h3 className="text-sm font-semibold">隐藏功能</h3>
+            <div className="mt-3 flex items-center justify-between gap-4 rounded-xl bg-[#f4f6f6] px-4 py-3">
+              <div><p className="text-sm font-medium">导入式剧本</p><p className="mt-1 text-xs text-[#71818b]">当前流程暂不使用，已从项目侧栏隐藏；功能代码和已有数据仍然保留。</p></div>
+              <span className="shrink-0 rounded-full bg-[#e8edef] px-3 py-1 text-xs text-[#6b7c85]">已隐藏</span>
+            </div>
+          </section>
+
           {globalMessage && <p role="status" className="rounded-xl border border-[#d7e2e7] bg-white px-4 py-3 text-sm text-[#456473]">{globalMessage}</p>}
         </div>
 

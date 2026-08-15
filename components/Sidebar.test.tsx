@@ -23,5 +23,6 @@ describe("Sidebar settings launcher", () => {
 
     expect(onOpenSettings).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("主题颜色")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /导入式剧本/ })).not.toBeInTheDocument();
   });
 });
