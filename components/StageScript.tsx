@@ -77,7 +77,7 @@ const StageScript: React.FC<Props> = ({ project, updateProject, onOpenAssets }) 
     resumedJob.current = persisted.jobId;
     void monitorJob(persisted.jobId).catch((cause) => {
       setStatus("failed");
-      setError(cause instanceof Error ? cause.message : "AI 剧本分析失败");
+      setError(readableAnalysisError(cause));
       updateProject({ isParsingScript: false });
     });
   }, [project.id]);
@@ -110,7 +110,7 @@ const StageScript: React.FC<Props> = ({ project, updateProject, onOpenAssets }) 
       await monitorJob(created.jobId);
     } catch (cause) {
       setStatus("failed");
-      setError(cause instanceof Error ? cause.message : "AI 剧本分析失败");
+      setError(readableAnalysisError(cause));
       updateProject({ isParsingScript: false });
     }
   };
@@ -155,9 +155,10 @@ const StageScript: React.FC<Props> = ({ project, updateProject, onOpenAssets }) 
         </div>
       )}
       {error && (
-        <div className="mx-8 mt-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          <AlertCircle className="h-4 w-4" />{error}
-          {status === "failed" && <button onClick={analyze} className="ml-auto underline">重试</button>}
+        <div role="alert" className="mx-8 mt-4 flex max-h-24 shrink-0 items-start gap-2 overflow-auto rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><span className="min-w-0 flex-1 break-words">{error}</span>
+          {status === "failed" && <button onClick={analyze} className="shrink-0 underline">重试</button>}
+          <button aria-label="关闭错误提示" onClick={() => setError("")} className="shrink-0 rounded p-0.5 hover:bg-red-100"><X className="h-4 w-4" /></button>
         </div>
       )}
 
@@ -266,6 +267,14 @@ function aiField<T extends object, K extends keyof T>(old: T | undefined, key: K
 
 function provenance<T extends { fieldProvenance?: Record<string, "manual" | "ai" | "legacy"> }>(old: T | undefined, fields: string[]) {
   return Object.fromEntries(fields.map((field) => [field, old ? old.fieldProvenance?.[field] || "legacy" : "ai"]));
+}
+
+function readableAnalysisError(cause: unknown): string {
+  const message = cause instanceof Error ? cause.message : String(cause || "");
+  if (/invalid_type|expected string|expected array|Zod/i.test(message)) {
+    return "AI 返回的剧本结构不兼容。请更换模型，或关闭此提示后修改剧本。";
+  }
+  return message || "AI 剧本分析失败";
 }
 
 export default StageScript;

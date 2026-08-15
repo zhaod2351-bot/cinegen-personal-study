@@ -159,6 +159,26 @@ describe("StageScript GPT workflow", () => {
     expect(createDirectorPlanJob).not.toHaveBeenCalled();
   });
 
+  it("collapses legacy schema errors into a dismissible alert", async () => {
+    pollAiJob.mockResolvedValue({
+      id: "job-invalid",
+      status: "failed",
+      progress: 35,
+      error: '[{"code":"invalid_type","expected":"string","path":["summary"]}]',
+    });
+    render(<StageScript project={{
+      ...project,
+      activeAiJobs: {
+        directorPlan: { jobId: "job-invalid", kind: "director-plan", status: "failed", progress: 35 },
+      },
+    }} updateProject={vi.fn()} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("AI 返回的剧本结构不兼容");
+    expect(screen.queryByText(/invalid_type/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "关闭错误提示" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("preserves manual character, scene and prop fields while refreshing AI-owned fields", () => {
     const source = structuredClone({
       ...project,
