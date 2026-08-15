@@ -34,6 +34,7 @@ const project = {
 
 describe("StageAssets image generation", () => {
   beforeEach(() => {
+    localStorage.clear();
     createStoryboardJob.mockReset().mockResolvedValue({ jobId: "image-job-1", status: "queued" });
     pollAiJob.mockReset().mockResolvedValue({ status: "completed", result: { imagePath: "asset.webp" } });
     localApiFetch.mockReset().mockResolvedValue(new Response(new Blob(["image"], { type: "image/webp" }), { status: 200 }));
@@ -66,5 +67,19 @@ describe("StageAssets image generation", () => {
         characters: [expect.objectContaining({ id: "character-1", referenceImage: undefined })],
       }),
     }));
+  });
+
+  it("resumes and retrieves a persisted asset image job after refresh", async () => {
+    localStorage.setItem("cinegen_asset_job:project-1", JSON.stringify({
+      jobId: "persisted-image-job",
+      kind: "character",
+      assetId: "character-1",
+      assetName: "苏林",
+    }));
+    render(<StageAssets project={project} updateProject={vi.fn()} />);
+
+    await waitFor(() => expect(pollAiJob).toHaveBeenCalledWith("persisted-image-job", expect.any(Object)));
+    await waitFor(() => expect(localApiFetch).toHaveBeenCalledWith("/api/jobs/persisted-image-job/image"));
+    await waitFor(() => expect(localStorage.getItem("cinegen_asset_job:project-1")).toBeNull());
   });
 });

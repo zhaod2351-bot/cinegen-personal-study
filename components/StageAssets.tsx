@@ -1,4 +1,4 @@
-import React, { ChangeEvent, useRef, useState } from "react";
+import React, { ChangeEvent, useEffect, useRef, useState } from "react";
 import {
   Box,
   Download,
@@ -23,6 +23,7 @@ import { Character, ProjectState, PropAsset, Scene } from "../types";
 
 type AssetKind = "character" | "scene" | "prop";
 type AssetItem = Character | Scene | PropAsset;
+interface PersistedAssetJob { jobId: string; kind: AssetKind; assetId: string; assetName: string; }
 interface Props {
   project: ProjectState;
   updateProject: (updates: Partial<ProjectState>) => void;
@@ -56,6 +57,21 @@ const StageAssets: React.FC<Props> = ({
   const [generating, setGenerating] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const resumedJob = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!data) return;
+    const locallyPersisted = readPersistedAssetJob(project.id);
+    const projectEntry = Object.entries(project.activeAiJobs || {}).find(([key]) => key.startsWith("asset:"));
+    const fromProject = projectEntry ? assetJobFromProject(projectEntry[0], projectEntry[1].jobId, data) : null;
+    const persisted = locallyPersisted || fromProject;
+    if (!persisted || resumedJob.current === persisted.jobId) return;
+    resumedJob.current = persisted.jobId;
+    void monitorAssetJob(persisted).catch((cause) => {
+      setGenerating(false);
+      notify(cause instanceof Error ? cause.message : "参考图任务恢复失败");
+    });
+  }, [project.id]);
 
   if (!data)
     return <div className="director-empty">请先完成剧本分析或导入式剧本。</div>;
@@ -129,6 +145,47 @@ const StageAssets: React.FC<Props> = ({
         ),
       },
     });
+  };
+
+  const saveReferenceForAsset = (targetKind: AssetKind, assetId: string, referenceImage: string) => {
+    updateProject({
+      scriptData: {
+        ...data,
+        characters: data.characters.map((item) => targetKind === "character" && item.id === assetId ? { ...item, referenceImage } : item),
+        scenes: data.scenes.map((item) => targetKind === "scene" && item.id === assetId ? { ...item, referenceImage } : item),
+        props: (data.props || []).map((item) => targetKind === "prop" && item.id === assetId ? { ...item, referenceImage } : item),
+      },
+    });
+  };
+
+  const clearPersistedAssetJob = (job: PersistedAssetJob) => {
+    localStorage.removeItem(assetJobStorageKey(project.id));
+    const key = `asset:${job.kind}:${job.assetId}`;
+    const { [key]: _finished, ...remainingJobs } = project.activeAiJobs || {};
+    updateProject({ activeAiJobs: remainingJobs });
+  };
+
+  const monitorAssetJob = async (job: PersistedAssetJob) => {
+    setGenerating(true);
+    setNotice(`正在生成${job.assetName}参考图，请稍候……`);
+    const complete = await pollAiJob<{ imagePath: string }>(job.jobId, {
+      onProgress: (snapshot) => updateProject({
+        activeAiJobs: {
+          ...(project.activeAiJobs || {}),
+          [`asset:${job.kind}:${job.assetId}`]: { jobId: job.jobId, kind: "storyboard", status: snapshot.status, progress: snapshot.progress, error: snapshot.error },
+        },
+      }),
+    });
+    if (complete.status === "failed") {
+      clearPersistedAssetJob(job);
+      throw new Error(complete.error || "参考图生成失败");
+    }
+    const imageResponse = await localApiFetch(`/api/jobs/${encodeURIComponent(job.jobId)}/image`);
+    if (!imageResponse.ok) throw new Error("生成已完成，暂时无法读取图片；刷新页面将继续恢复");
+    saveReferenceForAsset(job.kind, job.assetId, await blobToDataUrl(await imageResponse.blob()));
+    clearPersistedAssetJob(job);
+    notify(`${job.assetName}参考图已生成并保存。`);
+    setGenerating(false);
   };
   const setName = (value: string) =>
     save(isScene ? { location: value } : { name: value });
@@ -271,12 +328,13 @@ const StageAssets: React.FC<Props> = ({
         aspectRatio: project.aspectRatio || "16:9",
         version: 1,
       });
-      const complete = await pollAiJob<{ imagePath: string }>(created.jobId);
-      if (complete.status === "failed") throw new Error(complete.error || "参考图生成失败");
-      const imageResponse = await localApiFetch(`/api/jobs/${encodeURIComponent(created.jobId)}/image`);
-      if (!imageResponse.ok) throw new Error("生成成功，但读取参考图失败");
-      save({ referenceImage: await blobToDataUrl(await imageResponse.blob()) });
-      notify(`${name}参考图已生成并保存。`);
+      const job = { jobId: created.jobId, kind, assetId: selected.id, assetName: name };
+      localStorage.setItem(assetJobStorageKey(project.id), JSON.stringify(job));
+      updateProject({ activeAiJobs: {
+        ...(project.activeAiJobs || {}),
+        [`asset:${kind}:${selected.id}`]: { jobId: created.jobId, kind: "storyboard", status: created.status, progress: 0 },
+      } });
+      await monitorAssetJob(job);
     } catch (cause) {
       notify(cause instanceof Error ? cause.message : "参考图生成失败");
     } finally {
@@ -711,4 +769,32 @@ function blobToDataUrl(blob: Blob): Promise<string> {
     reader.onerror = () => reject(new Error("无法读取生成的图片"));
     reader.readAsDataURL(blob);
   });
+}
+
+function assetJobStorageKey(projectId: string): string {
+  return `cinegen_asset_job:${projectId}`;
+}
+
+function readPersistedAssetJob(projectId: string): PersistedAssetJob | null {
+  try {
+    const value = JSON.parse(localStorage.getItem(assetJobStorageKey(projectId)) || "null") as Partial<PersistedAssetJob> | null;
+    return value && typeof value.jobId === "string" && (value.kind === "character" || value.kind === "scene" || value.kind === "prop") && typeof value.assetId === "string" && typeof value.assetName === "string"
+      ? value as PersistedAssetJob
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function assetJobFromProject(key: string, jobId: string, data: NonNullable<ProjectState["scriptData"]>): PersistedAssetJob | null {
+  const match = /^asset:(character|scene|prop):(.+)$/.exec(key);
+  if (!match) return null;
+  const kind = match[1] as AssetKind;
+  const assetId = match[2];
+  const asset = kind === "character"
+    ? data.characters.find((item) => item.id === assetId)
+    : kind === "scene"
+      ? data.scenes.find((item) => item.id === assetId)
+      : (data.props || []).find((item) => item.id === assetId);
+  return asset ? { jobId, kind, assetId, assetName: itemName(asset, kind) } : null;
 }
