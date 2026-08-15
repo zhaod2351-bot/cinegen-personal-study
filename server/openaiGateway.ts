@@ -4,6 +4,7 @@ import { isIP } from "node:net";
 import { z } from "zod";
 import { buildDirectorPlanPrompt } from "./prompts/directorPlanPrompt";
 import { buildStoryboardPrompt } from "./prompts/storyboardPrompt";
+import { buildAssetReferencePrompt, isAssetReferenceInput } from "./prompts/assetReferencePrompt";
 import type { RuntimeAiSettings, RuntimeProviderSettings } from "./settings/types";
 import type { DirectorPlanInput, StoryboardInput } from "./types";
 import { DirectorPlanSchema } from "./validation/directorPlan";
@@ -124,8 +125,13 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
     if (!provider.apiKey) throw new Error("Image provider API key is not configured");
     try {
       const client = this.createClient({ apiKey: provider.apiKey, baseURL: provider.baseUrl, maxRetries: 0 });
-      const prompt = buildStoryboardPrompt(input);
+      const prompt = isAssetReferenceInput(input) ? buildAssetReferencePrompt(input) : buildStoryboardPrompt(input);
       const references = await buildReferenceUploads(input);
+      const size = isAssetReferenceInput(input) && input.assets[0]?.type === "character"
+        ? "1024x1536"
+        : isAssetReferenceInput(input) && input.assets[0]?.type === "prop"
+          ? "1024x1024"
+          : "1536x1024";
       const response = references.length > 0
         ? await client.images.edit({
           image: references,
@@ -133,7 +139,7 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
           stream: false,
           prompt,
           input_fidelity: "high",
-          size: "1536x1024",
+          size,
           quality: "high",
           output_format: "webp",
           background: "opaque",
@@ -142,7 +148,7 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
           model: provider.model,
           stream: false,
           prompt,
-          size: "1536x1024",
+          size,
           quality: "high",
           output_format: "webp",
           background: "opaque",

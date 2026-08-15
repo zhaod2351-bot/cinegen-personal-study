@@ -313,6 +313,9 @@ const StageAssets: React.FC<Props> = ({
         name,
         description: selected.visualPrompt || note || `${typeName}${name}`,
         tags,
+        referenceImages: dataUrlToReferences(
+          selected.referenceImage || allItems.find((item) => item.id !== selected.id && item.referenceImage)?.referenceImage,
+        ),
       };
       const clip: DirectorClip = {
         id: `asset-${selected.id}`,
@@ -782,6 +785,13 @@ function blobToDataUrl(blob: Blob): Promise<string> {
     reader.onerror = () => reject(new Error("无法读取生成的图片"));
     reader.readAsDataURL(blob);
   });
+}
+
+function dataUrlToReferences(dataUrl?: string): DirectorAsset["referenceImages"] {
+  if (!dataUrl) return undefined;
+  const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl);
+  if (!match) return undefined;
+  return [{ mimeType: match[1] as "image/png" | "image/jpeg" | "image/webp", data: match[2] }];
 }
 
 function assetJobStorageKey(projectId: string): string {
