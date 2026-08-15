@@ -883,14 +883,14 @@ function SkillCard({ skill, editing, update, remove, notify }: { skill: Characte
   };
   return <article className="grid min-h-[360px] grid-cols-[180px_1fr] gap-4 rounded-lg border border-[#e2d6c6] bg-[#fffaf2] p-4">
     <div>
-      <div className="group relative grid h-[170px] place-items-center overflow-hidden rounded-md border border-[#d8cbbb] bg-[#eee9e1]">
+      <div className="grid h-[170px] place-items-center overflow-hidden rounded-md border border-[#d8cbbb] bg-[#eee9e1]">
         {skill.referenceImage ? <img src={skill.referenceImage} alt={`${skill.name}技能图`} className="h-full w-full object-contain" /> : <Sparkles size={34} className="text-[#b7a99b]" />}
-        <div className="absolute inset-0 grid grid-cols-2 content-center gap-2 bg-black/60 p-3 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
-          {skill.referenceImage && <button type="button" onClick={() => setPreviewOpen(true)} className="flex items-center justify-center gap-1 rounded border border-white/70 bg-black/20 px-1 py-2 text-xs text-white"><Eye size={15} />查看大图</button>}
-          {skill.referenceImage && <a href={skill.referenceImage} download={`${skill.name || "技能"}-参考图.${skillImageExtension(skill.referenceImage)}`} className="flex items-center justify-center gap-1 rounded border border-white/70 bg-black/20 px-1 py-2 text-xs text-white"><Download size={15} />下载保存</a>}
-          {editing && <button type="button" onClick={() => inputRef.current?.click()} className="flex items-center justify-center gap-1 rounded border border-white/70 bg-black/20 px-1 py-2 text-xs text-white"><ImageUp size={15} />{skill.referenceImage ? "上传 / 替换" : "上传技能图"}</button>}
-          {editing && skill.referenceImage && <button type="button" onClick={() => { if (!window.confirm(`确定删除“${skill.name}”的技能图片吗？技能文字资料会保留。`)) return; update({ referenceImage: undefined }); notify("技能图片已删除，技能文字资料仍然保留。"); }} className="flex items-center justify-center gap-1 rounded border border-red-300 bg-red-900/50 px-1 py-2 text-xs text-white"><Trash2 size={15} />删除图片</button>}
-        </div>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        {skill.referenceImage && <button type="button" onClick={() => setPreviewOpen(true)} className="flex items-center justify-center gap-1 rounded border border-[#c9b9a7] bg-white px-1 py-2 text-xs !text-[#30251d]"><Eye size={15} />查看大图</button>}
+        {skill.referenceImage && <a href={skill.referenceImage} download={`${skill.name || "技能"}-参考图.${skillImageExtension(skill.referenceImage)}`} className="flex items-center justify-center gap-1 rounded border border-[#c9b9a7] bg-white px-1 py-2 text-xs text-[#30251d]"><Download size={15} />下载保存</a>}
+        {editing && <button type="button" onClick={() => inputRef.current?.click()} className={`flex items-center justify-center gap-1 rounded border border-[#c9b9a7] bg-white px-1 py-2 text-xs !text-[#30251d] ${skill.referenceImage ? "" : "col-span-2"}`}><ImageUp size={15} />{skill.referenceImage ? "上传 / 替换" : "上传技能图"}</button>}
+        {editing && skill.referenceImage && <button type="button" onClick={() => { if (!window.confirm(`确定删除“${skill.name}”的技能图片吗？技能文字资料会保留。`)) return; update({ referenceImage: undefined }); notify("技能图片已删除，技能文字资料仍然保留。"); }} className="flex items-center justify-center gap-1 rounded border border-red-200 bg-white px-1 py-2 text-xs !text-red-700"><Trash2 size={15} />删除图片</button>}
       </div>
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={upload} />
     </div>
