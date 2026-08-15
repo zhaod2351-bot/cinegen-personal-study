@@ -128,22 +128,28 @@ const StageAssets: React.FC<Props> = ({
   };
   const save = (changes: Record<string, unknown>) => {
     if (!selected) return;
+    const manualSources = Object.fromEntries(Object.keys(changes).map((field) => [field, "manual" as const]));
+    const applyChanges = <T extends AssetItem>(item: T) => ({
+      ...item,
+      ...changes,
+      fieldProvenance: { ...(item.fieldProvenance || {}), ...manualSources },
+    });
     updateProject({
       scriptData: {
         ...data,
         characters: data.characters.map((item) =>
           kind === "character" && item.id === selected.id
-            ? { ...item, ...changes }
+            ? applyChanges(item)
             : item,
         ),
         scenes: data.scenes.map((item) =>
           kind === "scene" && item.id === selected.id
-            ? { ...item, ...changes }
+            ? applyChanges(item)
             : item,
         ),
         props: (data.props || []).map((item) =>
           kind === "prop" && item.id === selected.id
-            ? { ...item, ...changes }
+            ? applyChanges(item)
             : item,
         ),
       },
@@ -252,7 +258,10 @@ const StageAssets: React.FC<Props> = ({
                 {
                   id,
                   location: "新场景",
-                  time: "未设置",
+                  time: "日间",
+                  weather: "晴朗少云",
+                  lighting: "自然日光，光向统一",
+                  palette: "低饱和中性色",
                   atmosphere: "请填写场景氛围。",
                 },
               ],
@@ -313,6 +322,12 @@ const StageAssets: React.FC<Props> = ({
         name,
         description: selected.visualPrompt || note || `${typeName}${name}`,
         tags,
+        sceneContinuity: isScene ? {
+          time: (selected as Scene).time || "日间",
+          weather: (selected as Scene).weather || "晴朗少云",
+          lighting: (selected as Scene).lighting || "自然日光，光向统一",
+          palette: (selected as Scene).palette || "低饱和中性色",
+        } : undefined,
         referenceImages: dataUrlToReferences(
           selected.referenceImage || allItems.find((item) => item.id !== selected.id && item.referenceImage)?.referenceImage,
         ),
@@ -665,22 +680,7 @@ const StageAssets: React.FC<Props> = ({
                               </p>
                             </>
                           ) : isScene ? (
-                            <p>
-                              <label>时间</label>
-                              {editing ? (
-                                <input
-                                  aria-label="场景时间"
-                                  value={(selected as Scene).time || ""}
-                                  onChange={(event) =>
-                                    save({ time: event.target.value })
-                                  }
-                                />
-                              ) : (
-                                <span>
-                                  {(selected as Scene).time || "未设置"}
-                                </span>
-                              )}
-                            </p>
+                            <SceneContinuityFields scene={selected as Scene} editing={editing} save={save} />
                           ) : (
                             <p>
                               <label>名称</label>
@@ -775,6 +775,33 @@ const StageAssets: React.FC<Props> = ({
     </section>
   );
 };
+
+const SCENE_CONTINUITY_OPTIONS = {
+  time: ["清晨", "上午", "正午", "下午", "黄昏", "夜晚", "深夜"],
+  weather: ["晴朗少云", "多云", "阴天", "薄雾", "小雨", "暴雨", "降雪", "沙尘"],
+  lighting: ["左前方暖色斜射光", "右前方暖色斜射光", "顶部正午硬光", "阴天柔和漫射光", "冷色月光", "室内暖色人工光", "逆光剪影"],
+  palette: ["冷灰废墟、低饱和青绿、暖金高光", "暖黄与土褐、低饱和", "冷蓝灰、青色阴影", "橙红夕照、深蓝阴影", "黑灰与暗红、低明度", "雪白、冷蓝与淡灰"],
+} as const;
+
+function SceneContinuityFields({ scene, editing, save }: { scene: Scene; editing: boolean; save: (changes: Record<string, unknown>) => void }) {
+  const rows = [
+    ["时间", "time", scene.time || "日间", SCENE_CONTINUITY_OPTIONS.time],
+    ["天气", "weather", scene.weather || "晴朗少云", SCENE_CONTINUITY_OPTIONS.weather],
+    ["光线", "lighting", scene.lighting || "自然日光，光向统一", SCENE_CONTINUITY_OPTIONS.lighting],
+    ["色卡", "palette", scene.palette || "低饱和中性色", SCENE_CONTINUITY_OPTIONS.palette],
+  ] as const;
+  return <>{rows.map(([label, field, value, options]) => (
+    <p key={field}>
+      <label>{label}</label>
+      {editing ? (
+        <select aria-label={`场景${label}`} value={value} onChange={(event) => save({ [field]: event.target.value })}>
+          {!options.includes(value as never) && <option value={value}>{value}（AI 建议）</option>}
+          {options.map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      ) : <span>{value}</span>}
+    </p>
+  ))}</>;
+}
 
 export default StageAssets;
 

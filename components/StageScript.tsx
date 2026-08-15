@@ -242,7 +242,7 @@ export function convertDirectorPlan(project: ProjectState, plan: DirectorPlan): 
   });
   const scenes: Scene[] = plan.assets.filter((asset) => asset.type === "scene").map((asset) => {
     const old = oldScenes.find((item) => item.id === asset.id || item.location === asset.name);
-    return { id: asset.id, location: old?.location || asset.name, time: old?.time || "未知", atmosphere: aiField(old, "atmosphere", asset.description), visualPrompt: aiField(old, "visualPrompt", asset.description), referenceImage: old?.referenceImage, tags: aiField(old, "tags", asset.tags || []), fieldProvenance: provenance(old, ["atmosphere", "visualPrompt", "tags"]) };
+    return { id: asset.id, location: old?.location || asset.name, time: aiField(old, "time", asset.sceneContinuity?.time || "日间"), weather: aiField(old, "weather", asset.sceneContinuity?.weather || "晴朗少云"), lighting: aiField(old, "lighting", asset.sceneContinuity?.lighting || "自然日光，光向统一"), palette: aiField(old, "palette", asset.sceneContinuity?.palette || "低饱和中性色"), atmosphere: aiField(old, "atmosphere", asset.description), visualPrompt: aiField(old, "visualPrompt", asset.description), referenceImage: old?.referenceImage, tags: aiField(old, "tags", asset.tags || []), fieldProvenance: provenance(old, ["time", "weather", "lighting", "palette", "atmosphere", "visualPrompt", "tags"]) };
   });
   const props: PropAsset[] = plan.assets.filter((asset) => asset.type === "prop").map((asset) => {
     const old = oldProps.find((item) => item.id === asset.id || item.name === asset.name);

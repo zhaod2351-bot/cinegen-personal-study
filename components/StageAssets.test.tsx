@@ -101,4 +101,28 @@ describe("StageAssets image generation", () => {
 
     await waitFor(() => expect(createStoryboardJob).toHaveBeenCalledTimes(2));
   });
+
+  it("shows editable scene continuity controls and sends them to image generation", async () => {
+    const sceneProject = structuredClone(project) as unknown as { scriptData: { scenes: Array<Record<string, unknown>> } };
+    Object.assign(sceneProject.scriptData.scenes[0], {
+      weather: "薄雾",
+      lighting: "右前方暖色斜射光",
+      palette: "冷蓝灰、青色阴影",
+    });
+    render(<StageAssets project={sceneProject as never} updateProject={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "场景" }));
+    fireEvent.click(screen.getByRole("button", { name: "编辑" }));
+
+    expect((screen.getByRole("combobox", { name: "场景天气" }) as HTMLSelectElement).value).toBe("薄雾");
+    expect((screen.getByRole("combobox", { name: "场景光线" }) as HTMLSelectElement).value).toBe("右前方暖色斜射光");
+    expect((screen.getByRole("combobox", { name: "场景色卡" }) as HTMLSelectElement).value).toBe("冷蓝灰、青色阴影");
+    fireEvent.click(screen.getByRole("button", { name: "重新生成" }));
+
+    await waitFor(() => expect(createStoryboardJob).toHaveBeenCalledWith(expect.objectContaining({
+      assets: [expect.objectContaining({
+        type: "scene",
+        sceneContinuity: expect.objectContaining({ weather: "薄雾", lighting: "右前方暖色斜射光", palette: "冷蓝灰、青色阴影" }),
+      })],
+    })));
+  });
 });

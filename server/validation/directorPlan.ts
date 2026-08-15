@@ -9,6 +9,12 @@ const DirectorAssetSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
   tags: z.array(z.string().min(1)).optional(),
+  sceneContinuity: z.object({
+    time: z.string().min(1),
+    weather: z.string().min(1),
+    lighting: z.string().min(1),
+    palette: z.string().min(1),
+  }).optional(),
 });
 
 const AssetReferenceSchema = z.object({

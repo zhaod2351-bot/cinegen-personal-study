@@ -13,6 +13,12 @@ export interface DirectorAsset {
   name: string;
   description: string;
   tags?: string[];
+  sceneContinuity?: {
+    time: string;
+    weather: string;
+    lighting: string;
+    palette: string;
+  };
   referenceImages?: DirectorReferenceImage[];
 }
 

@@ -26,6 +26,9 @@ export interface Scene {
   location: string;
   time: string;
   atmosphere: string;
+  weather?: string;
+  lighting?: string;
+  palette?: string;
   visualPrompt?: string;
   referenceImage?: string; // URL
   tags?: string[];

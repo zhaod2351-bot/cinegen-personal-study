@@ -2,6 +2,7 @@ import type { StoryboardInput } from "../types";
 
 export function buildAssetReferencePrompt(input: StoryboardInput): string {
   const asset = input.assets[0];
+  const continuity = asset?.type === "scene" ? asset.sceneContinuity : undefined;
   const kind = asset?.type === "character" ? "character design" : asset?.type === "scene" ? "environment design" : "prop design";
   const visual = input.clip.shots[0]?.visualPrompt || asset?.description || asset?.name || "asset";
   return [
@@ -18,6 +19,14 @@ export function buildAssetReferencePrompt(input: StoryboardInput): string {
     "TARGET ASSET",
     `Type: ${asset?.type || "asset"}`,
     `Name: ${asset?.name || input.sceneName}`,
+    ...(continuity ? [
+      "SCENE CONTINUITY — fixed production constraints:",
+      `Time of day: ${continuity.time}`,
+      `Weather: ${continuity.weather}`,
+      `Lighting and direction: ${continuity.lighting}`,
+      `Color palette: ${continuity.palette}`,
+      "Do not change weather, sun direction, exposure, white balance or base palette unless these fields explicitly say so.",
+    ] : []),
     `Description: ${asset?.description || visual}`,
     `Visual direction: ${visual}`,
     `Asset tags: ${asset?.tags?.join(", ") || "none"}`,
