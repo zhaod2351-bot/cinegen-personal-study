@@ -1,4 +1,5 @@
-import React, { useEffect, useId, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, Eye, EyeOff, Image, KeyRound, LoaderCircle, MessageSquareText, ShieldAlert, Video, X } from "lucide-react";
 import {
   clearAiKey,
@@ -11,7 +12,7 @@ import {
 } from "../services/aiSettingsService";
 
 type ProviderKind = "text" | "image";
-type ActiveAction = "load" | "save" | "test-text" | "test-image" | "clear-text" | "clear-image" | null;
+type ProviderAction = "save" | "test" | "clear" | null;
 
 interface AiSettingsDialogProps {
   onClose: () => void;
@@ -25,11 +26,13 @@ interface ProviderFormProps {
   input: ProviderSettingsInput;
   showKey: boolean;
   disabled: boolean;
+  saving: boolean;
   testing: boolean;
   clearing: boolean;
   message?: string;
   onInputChange: (input: ProviderSettingsInput) => void;
   onToggleKey: () => void;
+  onSave: () => void;
   onTest: () => void;
   onClear: () => void;
 }
@@ -57,11 +60,13 @@ const ProviderForm = ({
   input,
   showKey,
   disabled,
+  saving,
   testing,
   clearing,
   message,
   onInputChange,
   onToggleKey,
+  onSave,
   onTest,
   onClear,
 }: ProviderFormProps) => {
@@ -155,6 +160,15 @@ const ProviderForm = ({
       <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-[#edf0f2] pt-4">
         <button
           type="button"
+          onClick={onSave}
+          disabled={disabled || saving}
+          className="inline-flex h-9 items-center gap-2 rounded-xl bg-[#ba5c2a] px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-[#a84e20] disabled:cursor-wait disabled:opacity-60"
+        >
+          {saving && <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
+          {saving ? `保存${labelPrefix}中…` : `保存${labelPrefix}设置`}
+        </button>
+        <button
+          type="button"
           onClick={onTest}
           disabled={disabled || testing}
           className="inline-flex h-9 items-center gap-2 rounded-xl bg-[#496f82] px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-[#3c6173] disabled:cursor-wait disabled:opacity-60"
@@ -171,12 +185,16 @@ const ProviderForm = ({
 
 const AiSettingsDialog: React.FC<AiSettingsDialogProps> = ({ onClose }) => {
   const titleId = useId();
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const initialFocusRef = useRef<HTMLButtonElement>(null);
   const [settings, setSettings] = useState<PublicAiSettings>({ text: emptyProvider, image: emptyProvider });
   const [textInput, setTextInput] = useState<ProviderSettingsInput>(() => toInput(emptyProvider));
   const [imageInput, setImageInput] = useState<ProviderSettingsInput>(() => toInput(emptyProvider));
   const [showTextKey, setShowTextKey] = useState(false);
   const [showImageKey, setShowImageKey] = useState(false);
-  const [activeAction, setActiveAction] = useState<ActiveAction>("load");
+  const [loading, setLoading] = useState(true);
+  const [providerActions, setProviderActions] = useState<Record<ProviderKind, ProviderAction>>({ text: null, image: null });
   const [globalMessage, setGlobalMessage] = useState("");
   const [providerMessages, setProviderMessages] = useState<Partial<Record<ProviderKind, string>>>({});
 
@@ -192,40 +210,88 @@ const AiSettingsDialog: React.FC<AiSettingsDialogProps> = ({ onClose }) => {
         if (!controller.signal.aborted) setGlobalMessage(errorMessage(error));
       })
       .finally(() => {
-        if (!controller.signal.aborted) setActiveAction(null);
+        if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
   }, []);
 
   useEffect(() => {
+    const restoreFocusTo = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const overlay = overlayRef.current;
+    const background = Array.from(document.body.children).filter((element) => element !== overlay);
+    const previousAttributes = background.map((element) => ({
+      element,
+      ariaHidden: element.getAttribute("aria-hidden"),
+      hadInert: element.hasAttribute("inert"),
+    }));
+    for (const element of background) {
+      element.setAttribute("aria-hidden", "true");
+      element.setAttribute("inert", "");
+    }
+    initialFocusRef.current?.focus();
+
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )).filter((element) => !element.matches(":disabled") && !element.hasAttribute("inert"));
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !dialog.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !dialog.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      for (const { element, ariaHidden, hadInert } of previousAttributes) {
+        if (ariaHidden === null) element.removeAttribute("aria-hidden");
+        else element.setAttribute("aria-hidden", ariaHidden);
+        if (!hadInert) element.removeAttribute("inert");
+      }
+      restoreFocusTo?.focus();
+    };
   }, [onClose]);
 
-  const runAction = async (action: Exclude<ActiveAction, "load" | null>, operation: () => Promise<void>) => {
-    setActiveAction(action);
-    setGlobalMessage("");
+  const runProviderAction = async (kind: ProviderKind, action: Exclude<ProviderAction, null>, operation: () => Promise<void>) => {
+    setProviderActions((current) => ({ ...current, [kind]: action }));
+    setProviderMessages((current) => ({ ...current, [kind]: undefined }));
     try {
       await operation();
     } catch (error) {
-      setGlobalMessage(errorMessage(error));
+      setProviderMessages((current) => ({ ...current, [kind]: errorMessage(error) }));
     } finally {
-      setActiveAction(null);
+      setProviderActions((current) => ({ ...current, [kind]: null }));
     }
   };
 
-  const handleSave = () => runAction("save", async () => {
-    const saved = await saveAiSettings({ text: textInput, image: imageInput });
-    setSettings(saved);
-    setTextInput(toInput(saved.text));
-    setImageInput(toInput(saved.image));
-    setGlobalMessage("设置已安全保存");
+  const handleSave = (kind: ProviderKind) => runProviderAction(kind, "save", async () => {
+    const input = kind === "text" ? textInput : imageInput;
+    const saved = await saveAiSettings(kind === "text" ? { text: input } : { image: input });
+    setSettings((current) => ({ ...current, [kind]: saved[kind] }));
+    if (kind === "text") setTextInput(toInput(saved.text));
+    else setImageInput(toInput(saved.image));
+    setProviderMessages((current) => ({ ...current, [kind]: `${kind === "text" ? "文本" : "图片"}设置已安全保存` }));
   });
 
-  const handleTest = (kind: ProviderKind) => runAction(`test-${kind}`, async () => {
+  const handleTest = (kind: ProviderKind) => runProviderAction(kind, "test", async () => {
     const input = kind === "text" ? textInput : imageInput;
     const result = await testAiConnection(kind, input);
     if (kind === "text") setTextInput((current) => ({ ...current, apiKey: "" }));
@@ -233,22 +299,22 @@ const AiSettingsDialog: React.FC<AiSettingsDialogProps> = ({ onClose }) => {
     setProviderMessages((current) => ({ ...current, [kind]: result.message }));
   });
 
-  const handleClear = (kind: ProviderKind) => runAction(`clear-${kind}`, async () => {
+  const handleClear = (kind: ProviderKind) => runProviderAction(kind, "clear", async () => {
     const cleared = await clearAiKey(kind);
-    setSettings(cleared);
+    setSettings((current) => ({ ...current, [kind]: cleared[kind] }));
     if (kind === "text") setTextInput((current) => ({ ...current, apiKey: "" }));
     else setImageInput((current) => ({ ...current, apiKey: "" }));
     setProviderMessages((current) => ({ ...current, [kind]: "已清除保存的密钥" }));
   });
 
-  const busy = activeAction !== null;
-
-  return (
-    <div className="fixed inset-0 z-[120] grid place-items-center bg-[#1d2730]/45 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+  const modal = (
+    <div ref={overlayRef} className="fixed inset-0 z-[120] grid place-items-center bg-[#1d2730]/45 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        tabIndex={-1}
         className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-[24px] border border-white/80 bg-[#f5f4ef] text-[#25333b] shadow-[0_30px_100px_rgba(23,38,49,0.3)]"
       >
         <header className="sticky top-0 z-10 flex items-start justify-between gap-5 border-b border-[#dce3e7] bg-[#f5f4ef]/95 px-6 py-5 backdrop-blur">
@@ -257,7 +323,7 @@ const AiSettingsDialog: React.FC<AiSettingsDialogProps> = ({ onClose }) => {
             <h2 id={titleId} className="text-xl font-bold tracking-tight">AI 设置中心</h2>
             <p className="mt-1 text-xs text-[#71818b]">文本与图片供应商彼此独立，保存的密钥只会显示脱敏摘要。</p>
           </div>
-          <button type="button" onClick={onClose} aria-label="关闭设置" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[#d7dfe3] bg-white text-[#61727b] transition hover:bg-[#edf3f6]">
+          <button ref={initialFocusRef} type="button" onClick={onClose} aria-label="关闭设置" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[#d7dfe3] bg-white text-[#61727b] transition hover:bg-[#edf3f6]">
             <X className="h-4 w-4" />
           </button>
         </header>
@@ -275,12 +341,14 @@ const AiSettingsDialog: React.FC<AiSettingsDialogProps> = ({ onClose }) => {
             settings={settings.text}
             input={textInput}
             showKey={showTextKey}
-            disabled={busy}
-            testing={activeAction === "test-text"}
-            clearing={activeAction === "clear-text"}
+            disabled={loading || providerActions.text !== null}
+            saving={providerActions.text === "save"}
+            testing={providerActions.text === "test"}
+            clearing={providerActions.text === "clear"}
             message={providerMessages.text}
             onInputChange={setTextInput}
             onToggleKey={() => setShowTextKey((current) => !current)}
+            onSave={() => handleSave("text")}
             onTest={() => handleTest("text")}
             onClear={() => handleClear("text")}
           />
@@ -292,12 +360,14 @@ const AiSettingsDialog: React.FC<AiSettingsDialogProps> = ({ onClose }) => {
             settings={settings.image}
             input={imageInput}
             showKey={showImageKey}
-            disabled={busy}
-            testing={activeAction === "test-image"}
-            clearing={activeAction === "clear-image"}
+            disabled={loading || providerActions.image !== null}
+            saving={providerActions.image === "save"}
+            testing={providerActions.image === "test"}
+            clearing={providerActions.image === "clear"}
             message={providerMessages.image}
             onInputChange={setImageInput}
             onToggleKey={() => setShowImageKey((current) => !current)}
+            onSave={() => handleSave("image")}
             onTest={() => handleTest("image")}
             onClear={() => handleClear("image")}
           />
@@ -314,15 +384,13 @@ const AiSettingsDialog: React.FC<AiSettingsDialogProps> = ({ onClose }) => {
         </div>
 
         <footer className="sticky bottom-0 flex items-center justify-end gap-3 border-t border-[#dce3e7] bg-[#f5f4ef]/95 px-6 py-4 backdrop-blur">
-          <button type="button" onClick={onClose} className="h-10 rounded-xl border border-[#d4dde2] bg-white px-4 text-sm font-medium text-[#556872] hover:bg-[#edf3f6]">取消</button>
-          <button type="button" onClick={handleSave} disabled={busy} className="inline-flex h-10 min-w-28 items-center justify-center gap-2 rounded-xl bg-[#ba5c2a] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#a84e20] disabled:cursor-wait disabled:opacity-60">
-            {activeAction === "save" && <LoaderCircle className="h-4 w-4 animate-spin" />}
-            {activeAction === "save" ? "保存中…" : "保存设置"}
-          </button>
+          <button type="button" onClick={onClose} className="h-10 rounded-xl border border-[#d4dde2] bg-white px-4 text-sm font-medium text-[#556872] hover:bg-[#edf3f6]">关闭</button>
         </footer>
       </section>
     </div>
   );
+
+  return createPortal(modal, document.body);
 };
 
 export default AiSettingsDialog;

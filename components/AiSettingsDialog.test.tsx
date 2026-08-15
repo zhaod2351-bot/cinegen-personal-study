@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PublicAiSettings } from "../services/aiSettingsService";
 import AiSettingsDialog from "./AiSettingsDialog";
@@ -66,7 +67,7 @@ describe("AiSettingsDialog", () => {
     expect(textKey).toHaveAttribute("type", "password");
   });
 
-  it("saves the current forms, disables actions while loading, and clears passwords on success", async () => {
+  it("saves each provider independently without changing the other provider's unsaved form", async () => {
     let finishSave: ((value: PublicAiSettings) => void) | undefined;
     saveAiSettings.mockReturnValue(new Promise<PublicAiSettings>((resolve) => { finishSave = resolve; }));
     render(<AiSettingsDialog onClose={vi.fn()} />);
@@ -75,22 +76,36 @@ describe("AiSettingsDialog", () => {
     fireEvent.change(screen.getByLabelText("文本 Base URL"), { target: { value: "https://text-new.example/v1" } });
     fireEvent.change(screen.getByLabelText("文本模型名称"), { target: { value: "gpt-5.1" } });
     fireEvent.change(screen.getByLabelText("文本 API Key"), { target: { value: "sk-new-text" } });
+    fireEvent.change(screen.getByLabelText("图片 Base URL"), { target: { value: "https://image-draft.example/v2" } });
+    fireEvent.change(screen.getByLabelText("图片模型名称"), { target: { value: "image-draft" } });
     fireEvent.change(screen.getByLabelText("图片 API Key"), { target: { value: "im-new-image" } });
-    fireEvent.click(screen.getByRole("button", { name: "保存设置" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存文本设置" }));
 
-    expect(screen.getByRole("button", { name: "保存中…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "保存文本中…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "测试图片连接" })).toBeEnabled();
     expect(saveAiSettings).toHaveBeenCalledWith({
       text: { baseUrl: "https://text-new.example/v1", model: "gpt-5.1", apiKey: "sk-new-text" },
-      image: { baseUrl: "https://image.example/v1", model: "gpt-image-2", apiKey: "im-new-image" },
     });
 
     finishSave?.({
       ...settings,
       text: { ...settings.text, baseUrl: "https://text-new.example/v1", model: "gpt-5.1", keyMask: "sk-****text" },
-      image: { ...settings.image, keyMask: "im-****mage" },
     });
-    expect(await screen.findByText("设置已安全保存")).toBeVisible();
+    expect(await screen.findByText("文本设置已安全保存")).toBeVisible();
     expect(screen.getByLabelText("文本 API Key")).toHaveValue("");
+    expect(screen.getByLabelText("图片 Base URL")).toHaveValue("https://image-draft.example/v2");
+    expect(screen.getByLabelText("图片模型名称")).toHaveValue("image-draft");
+    expect(screen.getByLabelText("图片 API Key")).toHaveValue("im-new-image");
+
+    saveAiSettings.mockResolvedValueOnce({
+      ...settings,
+      image: { ...settings.image, baseUrl: "https://image-draft.example/v2", model: "image-draft", keyMask: "im-****mage" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存图片设置" }));
+    await waitFor(() => expect(saveAiSettings).toHaveBeenLastCalledWith({
+      image: { baseUrl: "https://image-draft.example/v2", model: "image-draft", apiKey: "im-new-image" },
+    }));
+    expect(await screen.findByText("图片设置已安全保存")).toBeVisible();
     expect(screen.getByLabelText("图片 API Key")).toHaveValue("");
   });
 
@@ -105,6 +120,7 @@ describe("AiSettingsDialog", () => {
     fireEvent.change(screen.getByLabelText("文本 API Key"), { target: { value: "bad-text-key" } });
     fireEvent.click(screen.getByRole("button", { name: "测试文本连接" }));
     expect(screen.getByRole("button", { name: "测试中…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "测试图片连接" })).toBeEnabled();
     failTextTest?.(new Error("认证失败，请检查密钥"));
     expect(await screen.findByText("认证失败，请检查密钥")).toBeVisible();
     expect(screen.getByLabelText("文本 API Key")).toHaveValue("bad-text-key");
@@ -118,6 +134,25 @@ describe("AiSettingsDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "测试图片连接" }));
     expect(await screen.findByText("图片模型连接正常")).toBeVisible();
     expect(screen.getByLabelText("图片 API Key")).toHaveValue("");
+  });
+
+  it("clears a provider's old message when its next operation starts", async () => {
+    let finishSecondTest: ((value: { ok: true; message: string }) => void) | undefined;
+    testAiConnection
+      .mockResolvedValueOnce({ ok: true, message: "文本连接正常" })
+      .mockReturnValueOnce(new Promise((resolve) => { finishSecondTest = resolve; }));
+    render(<AiSettingsDialog onClose={vi.fn()} />);
+    await screen.findByDisplayValue("https://text.example/v1");
+
+    fireEvent.click(screen.getByRole("button", { name: "测试文本连接" }));
+    expect(await screen.findByText("文本连接正常")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "测试文本连接" }));
+    expect(screen.queryByText("文本连接正常")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "测试图片连接" })).toBeEnabled();
+
+    finishSecondTest?.({ ok: true, message: "文本仍然连接正常" });
+    expect(await screen.findByText("文本仍然连接正常")).toBeVisible();
   });
 
   it("clears only the selected provider key", async () => {
@@ -142,11 +177,45 @@ describe("AiSettingsDialog", () => {
     await screen.findByDisplayValue("https://text.example/v1");
 
     fireEvent.change(screen.getByLabelText("文本 API Key"), { target: { value: "keep-me" } });
-    fireEvent.click(screen.getByRole("button", { name: "保存设置" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存文本设置" }));
     expect(await screen.findByText("Base URL 无效")).toBeVisible();
     expect(screen.getByLabelText("文本 API Key")).toHaveValue("keep-me");
 
     fireEvent.keyDown(document, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("traps focus inside the modal, hides the background, and restores the launcher focus", async () => {
+    const FocusHarness = () => {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>打开设置</button>
+          {open && <AiSettingsDialog onClose={() => setOpen(false)} />}
+        </>
+      );
+    };
+    const { container } = render(<FocusHarness />);
+    const launcher = screen.getByRole("button", { name: "打开设置" });
+    launcher.focus();
+    fireEvent.click(launcher);
+
+    const dialog = screen.getByRole("dialog", { name: "AI 设置中心" });
+    const headerClose = within(dialog).getByRole("button", { name: "关闭设置" });
+    await waitFor(() => expect(headerClose).toHaveFocus());
+    expect(container).toHaveAttribute("aria-hidden", "true");
+    expect(container).toHaveAttribute("inert");
+
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    const footerClose = within(dialog).getByRole("button", { name: "关闭" });
+    expect(footerClose).toHaveFocus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(headerClose).toHaveFocus();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "AI 设置中心" })).not.toBeInTheDocument();
+    expect(launcher).toHaveFocus();
+    expect(container).not.toHaveAttribute("aria-hidden");
+    expect(container).not.toHaveAttribute("inert");
   });
 });

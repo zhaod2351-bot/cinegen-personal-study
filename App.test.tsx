@@ -2,12 +2,33 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ProjectState } from "./types";
 import App from "./App";
 
 const getAllProjectsMetadata = vi.fn();
 const subscribeToProjectSync = vi.fn();
 const getAiHealth = vi.fn();
 const getAiSettings = vi.fn();
+
+const project: ProjectState = {
+  id: "project-settings-test",
+  title: "余烬回声",
+  createdAt: 1,
+  lastModified: 1,
+  stage: "script",
+  rawScript: "小狐狸跑进废墟。",
+  targetDuration: "60 秒",
+  language: "中文",
+  artStyle: "日漫赛璐璐",
+  styleTags: ["末世"],
+  aspectRatio: "16:9",
+  scriptData: null,
+  shots: [],
+  isParsingScript: false,
+  directorClips: [],
+  storyboardVersions: [],
+  activeAiJobs: {},
+};
 
 vi.mock("./services/storageService", async (importOriginal) => {
   const original = await importOriginal<typeof import("./services/storageService")>();
@@ -59,6 +80,20 @@ describe("App settings entry", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "你好，创作者！" });
 
+    fireEvent.click(screen.getByRole("button", { name: "系统设置" }));
+
+    expect(await screen.findByRole("dialog", { name: "AI 设置中心" })).toBeVisible();
+  });
+
+  it("opens the real settings dialog from the project Sidebar", async () => {
+    getAllProjectsMetadata.mockResolvedValue([project]);
+    render(<App />);
+    const projectHeadings = await screen.findAllByRole("heading", { name: "余烬回声" });
+    const projectHeading = projectHeadings.find((heading) => heading.closest("article"));
+    expect(projectHeading).toBeDefined();
+    fireEvent.click(projectHeading!.closest("article") as HTMLElement);
+
+    expect(await screen.findByText("当前项目")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "系统设置" }));
 
     expect(await screen.findByRole("dialog", { name: "AI 设置中心" })).toBeVisible();
