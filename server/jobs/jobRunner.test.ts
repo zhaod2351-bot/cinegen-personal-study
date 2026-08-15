@@ -98,6 +98,19 @@ describe("JobRunner", () => {
     expect((await store.get(job.id))?.status).toBe("completed");
   });
 
+  it("replaces repeated schema details with a concise safe message", async () => {
+    const gateway: AiGateway = {
+      async createDirectorPlan() { return { invalid: true }; },
+      async repairDirectorPlan() { return { stillInvalid: true }; },
+      async generateStoryboard() { return { image: Buffer.from("unused"), model: "unused" }; },
+    };
+    const { store, runner } = await setup(gateway);
+    const job = await runner.runDirectorPlan(directorInput);
+    await runner.waitFor(job.id);
+
+    expect((await store.get(job.id))?.error).toBe("AI 返回的导演计划结构不兼容，请更换模型或稍后重试");
+  });
+
   it("does not automatically retry a billed text request after a provider failure", async () => {
     let attempts = 0;
     const gateway: AiGateway = {

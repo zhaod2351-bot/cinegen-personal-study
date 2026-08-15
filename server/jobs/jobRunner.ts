@@ -116,7 +116,11 @@ export class JobRunner {
       } catch (validationError) {
         if (!gateway.repairDirectorPlan) throw validationError;
         const repaired = await gateway.repairDirectorPlan(input, raw);
-        plan = validateDirectorPlan(repaired);
+        try {
+          plan = validateDirectorPlan(repaired);
+        } catch {
+          throw new Error("AI 返回的导演计划结构不兼容，请更换模型或稍后重试");
+        }
       }
       await this.options.store.update<DirectorPlanInput, DirectorPlan>(id, {
         status: "completed",
