@@ -11,6 +11,25 @@ function commandText(invocation: PowerShellInvocation): string {
 }
 
 describe("WindowsDpapiProtector", () => {
+  it("loads the Windows security assembly before invoking ProtectedData", async () => {
+    const invocations: PowerShellInvocation[] = [];
+    const protector = new WindowsDpapiProtector({
+      platform: "win32",
+      runPowerShell: async (invocation) => {
+        invocations.push(invocation);
+        return { exitCode: 0, stdout: "cHJvdGVjdGVk", stderr: "" };
+      },
+    });
+
+    await protector.protect("placeholder");
+
+    expect(invocations[0].args.join(" ")).toBeTruthy();
+    const encoded = invocations[0].args.at(-1)!;
+    const script = Buffer.from(encoded, "base64").toString("utf16le");
+    expect(script).toContain("Add-Type -AssemblyName System.Security");
+    expect(script.indexOf("Add-Type")).toBeLessThan(script.indexOf("ProtectedData"));
+  });
+
   it("round-trips UTF-8 secrets through stdin and an encoded non-interactive PowerShell command", async () => {
     const secret = "sk-secret-秘密";
     const runPowerShell = vi.fn(async (invocation: PowerShellInvocation) => {

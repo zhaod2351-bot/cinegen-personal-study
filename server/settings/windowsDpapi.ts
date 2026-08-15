@@ -24,6 +24,7 @@ const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/
 
 const protectScript = [
   "$ErrorActionPreference = 'Stop'",
+  "Add-Type -AssemblyName System.Security",
   "$plaintext = [Console]::In.ReadToEnd()",
   "$bytes = [Text.Encoding]::UTF8.GetBytes($plaintext)",
   "$protected = [Security.Cryptography.ProtectedData]::Protect($bytes, $null, [Security.Cryptography.DataProtectionScope]::CurrentUser)",
@@ -32,6 +33,7 @@ const protectScript = [
 
 const unprotectScript = [
   "$ErrorActionPreference = 'Stop'",
+  "Add-Type -AssemblyName System.Security",
   "$protected = [Convert]::FromBase64String([Console]::In.ReadToEnd().Trim())",
   "$plaintext = [Security.Cryptography.ProtectedData]::Unprotect($protected, $null, [Security.Cryptography.DataProtectionScope]::CurrentUser)",
   "[Console]::Out.Write([Convert]::ToBase64String($plaintext))",
