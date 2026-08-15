@@ -28,11 +28,21 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+function localFetch(
+  handler: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
+) {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (input === "/api/session") return jsonResponse({ token: "settings-session-token" });
+    expect(new Headers(init?.headers).get("X-CineGen-Session")).toBe("settings-session-token");
+    return handler(input, init);
+  });
+}
+
 describe("AI settings service", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("gets public settings with the optional abort signal", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = localFetch(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(input).toBe("/api/settings/ai");
       expect(init?.signal).toBe(controller.signal);
       expect(init?.body).toBeUndefined();
@@ -45,10 +55,10 @@ describe("AI settings service", () => {
   });
 
   it("saves settings with the literal PUT body and omits missing API keys", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = localFetch(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(input).toBe("/api/settings/ai");
       expect(init?.method).toBe("PUT");
-      expect(init?.headers).toEqual({ "content-type": "application/json" });
+      expect(new Headers(init?.headers).get("content-type")).toBe("application/json");
       expect(init?.body).toBe(JSON.stringify({
         text: { baseUrl: "https://text.example.test/v1", model: "text-model" },
         image: { baseUrl: "https://image.example.test/v1", model: "image-model" },
@@ -64,7 +74,7 @@ describe("AI settings service", () => {
   });
 
   it.each(["text", "image"] as const)("clears the %s provider API key", async (kind) => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = localFetch(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(input).toBe(`/api/settings/ai/${kind}-key`);
       expect(init?.method).toBe("DELETE");
       expect(init?.body).toBeUndefined();
@@ -82,10 +92,10 @@ describe("AI settings service", () => {
       apiKey: "sk-test",
     };
     const result = { ok: true as const, message: "文本服务连接成功" };
-    const fetchMock = vi.fn(async (request: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = localFetch(async (request: RequestInfo | URL, init?: RequestInit) => {
       expect(request).toBe("/api/settings/ai/test-text");
       expect(init?.method).toBe("POST");
-      expect(init?.headers).toEqual({ "content-type": "application/json" });
+      expect(new Headers(init?.headers).get("content-type")).toBe("application/json");
       expect(init?.body).toBe(JSON.stringify(input));
       return jsonResponse(result);
     });
@@ -106,10 +116,10 @@ describe("AI settings service", () => {
       ...(apiKey === undefined ? {} : { apiKey }),
     };
     const result = { ok: true as const, message: `${kind} connection ok` };
-    const fetchMock = vi.fn(async (request: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = localFetch(async (request: RequestInfo | URL, init?: RequestInit) => {
       expect(request).toBe(`/api/settings/ai/test-${kind}`);
       expect(init?.method).toBe("POST");
-      expect(init?.headers).toEqual({ "content-type": "application/json" });
+      expect(new Headers(init?.headers).get("content-type")).toBe("application/json");
       expect(init?.body).toBe(JSON.stringify({
         baseUrl: input.baseUrl,
         model: input.model,
@@ -122,7 +132,7 @@ describe("AI settings service", () => {
   });
 
   it("surfaces only the sanitized backend error from failed responses", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({
+    vi.stubGlobal("fetch", localFetch(async () => jsonResponse({
       code: "AI_AUTH_FAILED",
       error: "认证失败，请检查 API Key",
       details: { requestBody: "must not be exposed" },

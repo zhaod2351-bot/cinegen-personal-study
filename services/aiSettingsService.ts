@@ -3,6 +3,7 @@ import type {
   PublicAiSettings,
   ProviderSettingsInput,
 } from "../server/settings/types";
+import { localApiFetch } from "./localApiSession";
 
 export type {
   AiSettingsUpdate,
@@ -54,7 +55,7 @@ function withoutEmptyApiKey(input: ProviderSettingsInput): ProviderSettingsInput
 }
 
 async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(path, {
+  const response = await localApiFetch(path, {
     ...init,
     headers: { "content-type": "application/json", ...init.headers },
   });

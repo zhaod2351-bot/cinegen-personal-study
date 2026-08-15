@@ -13,6 +13,7 @@ import type { RuntimeAiSettings, RuntimeProviderSettings } from "./settings/type
 
 const textKey = "sk-text-must-never-leak-123456";
 const imageKey = "sk-image-must-never-leak-abcdef";
+const localSessionToken = "test-local-session-token";
 
 class ReversibleProtector {
   async protect(value: string): Promise<string> {
@@ -73,6 +74,7 @@ async function settingsApiFixture(options: {
     settingsStore,
     connectionTester,
     archiveRoot: join(root, "archive"),
+    sessionToken: localSessionToken,
   });
   return { app, archiveRoot: join(root, "archive"), connectionTester, settingsStore };
 }
@@ -156,11 +158,68 @@ async function failingProviderFixture() {
     runner,
     settingsStore,
     connectionTester: new RecordingConnectionTester(),
+    sessionToken: localSessionToken,
   });
   return { app, root, runner };
 }
 
 describe("local AI API", () => {
+  it("rejects remote hosts and origins before they can change a provider", async () => {
+    const { app, settingsStore } = await settingsApiFixture();
+    const maliciousUpdate = {
+      text: { baseUrl: "https://attacker.example/v1", model: "stolen-key-relay" },
+    };
+
+    await request(app)
+      .put("/api/settings/ai")
+      .set("Host", "192.168.1.25:8787")
+      .set("Origin", "http://192.168.1.25:3000")
+      .set("X-CineGen-Session", localSessionToken)
+      .send(maliciousUpdate)
+      .expect(403);
+
+    await request(app)
+      .put("/api/settings/ai")
+      .set("Host", "127.0.0.1:8787")
+      .set("Origin", "https://attacker.example")
+      .set("X-CineGen-Session", localSessionToken)
+      .send(maliciousUpdate)
+      .expect(403);
+
+    expect((await settingsStore.getRuntimeSettings()).text).toEqual(settingsDefaults.text);
+  });
+
+  it("requires the bootstrapped in-memory session token for sensitive local API access", async () => {
+    const { app, settingsStore } = await settingsApiFixture();
+    const update = {
+      text: { baseUrl: "https://local.example/v1", model: "local-model" },
+    };
+
+    await request(app)
+      .put("/api/settings/ai")
+      .set("Host", "127.0.0.1:8787")
+      .set("Origin", "http://127.0.0.1:3000")
+      .send(update)
+      .expect(401);
+
+    const session = await request(app)
+      .get("/api/session")
+      .set("Host", "127.0.0.1:8787")
+      .set("Origin", "http://127.0.0.1:3000")
+      .expect(200);
+    expect(session.body).toEqual({ token: localSessionToken });
+
+    await request(app)
+      .put("/api/settings/ai")
+      .set("Host", "127.0.0.1:8787")
+      .set("Origin", "http://127.0.0.1:3000")
+      .set("X-CineGen-Session", session.body.token as string)
+      .send(update)
+      .expect(200);
+
+    expect((await settingsStore.getRuntimeSettings()).text).toMatchObject(update.text);
+  });
+
   it.each([
     ["PUT", "/api/settings/ai"],
     ["POST", "/api/settings/ai/test-text"],

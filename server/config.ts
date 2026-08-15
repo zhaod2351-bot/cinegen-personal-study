@@ -9,7 +9,7 @@ const schema = z.object({
   OPENAI_TEXT_MODEL: z.string().min(1).default("gpt-5.6-terra"),
   OPENAI_IMAGE_MODEL: z.string().min(1).default("gpt-image-2"),
   AI_ASSET_ROOT: z.string().min(1).default("D:\\AI动画创作素材"),
-  AI_SERVER_HOST: z.string().min(1).default("127.0.0.1"),
+  AI_SERVER_HOST: z.enum(["127.0.0.1", "::1"]).default("127.0.0.1"),
   AI_SERVER_PORT: z.coerce.number().int().positive().default(8787),
 });
 

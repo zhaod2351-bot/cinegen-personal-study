@@ -42,4 +42,15 @@ describe("loadServerConfig", () => {
       port: 8787,
     });
   });
+
+  it.each(["0.0.0.0", "192.168.1.25", "cinegen.example.test"])(
+    "rejects the non-loopback AI server host %s",
+    (host) => {
+      expect(() => loadServerConfig({ AI_SERVER_HOST: host })).toThrow();
+    },
+  );
+
+  it.each(["127.0.0.1", "::1"])("accepts the loopback AI server host %s", (host) => {
+    expect(loadServerConfig({ AI_SERVER_HOST: host }).host).toBe(host);
+  });
 });

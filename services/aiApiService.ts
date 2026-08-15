@@ -1,4 +1,5 @@
 import type { DirectorPlan, DirectorPlanInput, StoryboardInput } from "../server/types";
+import { localApiFetch } from "./localApiSession";
 
 export type AiJobStatus = "queued" | "in_progress" | "completed" | "failed";
 
@@ -61,7 +62,7 @@ export async function pollAiJob<TResult = DirectorPlan>(
 }
 
 async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(path, {
+  const response = await localApiFetch(path, {
     ...init,
     headers: { "content-type": "application/json", ...init.headers },
   });

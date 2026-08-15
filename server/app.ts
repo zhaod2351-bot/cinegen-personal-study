@@ -4,6 +4,11 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import { z, ZodError, type ZodType } from "zod";
 import type { JobRunner } from "./jobs/jobRunner";
 import type { JobStore } from "./jobs/jobStore";
+import {
+  createLocalSessionToken,
+  enforceLoopbackRequest,
+  requireBrowserSession,
+} from "./localApiSecurity";
 import type { AiConnectionSettings, AiConnectionTester } from "./openaiGateway";
 import type { AiSettingsStore } from "./settings/aiSettingsStore";
 
@@ -83,11 +88,19 @@ export interface AppDependencies {
   connectionTester: AiConnectionTester;
   archiveRoot?: string;
   distPath?: string;
+  sessionToken?: string;
 }
 
 export function createApp(deps: AppDependencies): Express {
   const app = express();
   app.disable("x-powered-by");
+  const sessionToken = deps.sessionToken ?? createLocalSessionToken();
+  app.use("/api", enforceLoopbackRequest);
+  app.get("/api/session", (_request, response) => {
+    response.set({ "Cache-Control": "no-store", Pragma: "no-cache" });
+    response.json({ token: sessionToken });
+  });
+  app.use("/api", requireBrowserSession(sessionToken));
   app.use(express.json({ limit: "25mb" }));
 
   app.get("/api/health", settingsRoute(async (_request, response) => {
