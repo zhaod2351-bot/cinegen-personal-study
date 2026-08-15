@@ -1,6 +1,7 @@
 $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $localUrl = "http://localhost:3000"
+$sessionUrl = "http://127.0.0.1:3000/api/session"
 
 function Stop-WithMessage([string]$message) {
   Write-Host ""
@@ -8,6 +9,27 @@ function Stop-WithMessage([string]$message) {
   Write-Host ""
   Write-Host "Please send a screenshot of this window to Codex." -ForegroundColor Yellow
   exit 1
+}
+
+function Test-CineGenReady {
+  try {
+    $response = Invoke-WebRequest -UseBasicParsing -Uri $sessionUrl -TimeoutSec 2
+    if ($response.StatusCode -ne 200) { return $false }
+    $session = $response.Content | ConvertFrom-Json
+    return ($session.token -is [string] -and $session.token.Length -gt 0)
+  } catch {
+    return $false
+  }
+}
+
+function Open-CineGen {
+  try {
+    # Explorer reliably hands HTTP URLs to the user's default browser, including
+    # when this launcher was started from an elevated command window.
+    Start-Process -FilePath "explorer.exe" -ArgumentList $localUrl
+  } catch {
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "start", "", $localUrl -WindowStyle Hidden
+  }
 }
 
 Write-Host "CineGen One-click Launcher" -ForegroundColor Cyan
@@ -31,21 +53,23 @@ if (-not (Test-Path -LiteralPath (Join-Path $projectRoot "node_modules"))) {
   }
 }
 
+if (Test-CineGenReady) {
+  Write-Host "CineGen is already running. Opening $localUrl" -ForegroundColor Green
+  Open-CineGen
+  exit 0
+}
+
 $command = "title CineGen Local Service && cd /d `"$projectRoot`" && npm run dev:local"
 Start-Process -FilePath "cmd.exe" -ArgumentList "/k", $command | Out-Null
 
 Write-Host "Starting the local AI service..." -ForegroundColor Yellow
 $ready = $false
 for ($attempt = 1; $attempt -le 60; $attempt++) {
-  try {
-    $response = Invoke-WebRequest -UseBasicParsing -Uri $localUrl -TimeoutSec 2
-    if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) {
-      $ready = $true
-      break
-    }
-  } catch {
-    Start-Sleep -Seconds 1
+  if (Test-CineGenReady) {
+    $ready = $true
+    break
   }
+  Start-Sleep -Seconds 1
 }
 
 if (-not $ready) {
@@ -53,4 +77,4 @@ if (-not $ready) {
 }
 
 Write-Host "CineGen is ready. Opening $localUrl" -ForegroundColor Green
-Start-Process $localUrl
+Open-CineGen
