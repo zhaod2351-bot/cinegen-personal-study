@@ -1,6 +1,9 @@
 import type { DirectorPlanInput } from "../types";
 
 export function buildDirectorPlanPrompt(input: DirectorPlanInput): string {
+  const existingSkills = (input.existingCharacterSkills || [])
+    .map((character) => `${character.characterName}：${character.skills.map((skill) => `${skill.name}（${skill.description}）`).join("；")}`)
+    .join("\n");
   return [
     "你是一名动画短片导演和制片数据设计师。",
     "请把锁定剧本润色并拆解为可编辑、可验证的导演制作计划。",
@@ -11,6 +14,10 @@ export function buildDirectorPlanPrompt(input: DirectorPlanInput): string {
     `画幅：${input.aspectRatio}`,
     `语言：${input.language}`,
     `用户时长偏好（仅供参考，不要求凑满）：${input.targetDuration}`,
+    "",
+    "【已有角色固定技能（剧情涉及时必须沿用）】",
+    existingSkills || "无",
+    "这里仅提供技能名称和技能说明。不得改变已有技能的效果、机制或限制；剧情没有使用某项技能时，不要强行加入。",
     "",
     "【锁定剧本】",
     input.lockedScript,

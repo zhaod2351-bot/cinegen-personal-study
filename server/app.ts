@@ -71,6 +71,13 @@ const directorPlanInput = z.object({
   aspectRatio: z.string().min(1),
   language: z.string().min(1),
   targetDuration: z.string().min(1),
+  existingCharacterSkills: z.array(z.object({
+    characterName: z.string().min(1).max(100),
+    skills: z.array(z.object({
+      name: z.string().min(1).max(100),
+      description: z.string().min(1).max(2_000),
+    })).max(12),
+  })).max(50).optional(),
 });
 const storyboardInput = z.object({
   projectId: z.string().min(1),

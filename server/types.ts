@@ -71,6 +71,10 @@ export interface DirectorPlanInput {
   aspectRatio: string;
   language: string;
   targetDuration: string;
+  existingCharacterSkills?: Array<{
+    characterName: string;
+    skills: Array<{ name: string; description: string }>;
+  }>;
 }
 
 export interface StoryboardInput {

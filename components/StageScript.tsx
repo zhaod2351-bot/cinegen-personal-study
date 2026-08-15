@@ -104,6 +104,14 @@ const StageScript: React.FC<Props> = ({ project, updateProject, onOpenAssets }) 
         aspectRatio: project.aspectRatio || "16:9",
         language: project.language || "简体中文",
         targetDuration: project.targetDuration || "60s",
+        existingCharacterSkills: (project.scriptData?.characters || [])
+          .map((character) => ({
+            characterName: character.name,
+            skills: (character.skills || [])
+              .filter((skill) => skill.name.trim() && skill.description.trim())
+              .map((skill) => ({ name: skill.name.trim(), description: skill.description.trim() })),
+          }))
+          .filter((character) => character.skills.length > 0),
       });
       updateProject({
         activeAiJobs: {

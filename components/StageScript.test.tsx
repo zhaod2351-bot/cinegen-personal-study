@@ -100,12 +100,26 @@ describe("StageScript GPT workflow", () => {
 
   it("submits the locked script and shows task progress", async () => {
     pollAiJob.mockReturnValue(new Promise(() => undefined));
-    render(<StageScript project={{ ...project, scriptData: null }} updateProject={vi.fn()} />);
+    const projectWithSkill = {
+      ...project,
+      scriptData: {
+        ...project.scriptData!,
+        characters: project.scriptData!.characters.map((character) => ({
+          ...character,
+          skills: [{ id: "skill-1", name: "青芒", description: "释放三道刀芒逼退近身敌人。", visualPrompt: "这段很长，不应发送给文本模型。" }],
+        })),
+      },
+    };
+    render(<StageScript project={projectWithSkill} updateProject={vi.fn()} />);
 
     fireEvent.click(screen.getByRole("button", { name: "AI 剧本分析" }));
 
     expect(await screen.findByText("正在规划镜头")).toBeInTheDocument();
-    expect(createDirectorPlanJob).toHaveBeenCalledWith(expect.objectContaining({ lockedScript: project.rawScript }));
+    expect(createDirectorPlanJob).toHaveBeenCalledWith(expect.objectContaining({
+      lockedScript: project.rawScript,
+      existingCharacterSkills: [{ characterName: "小狐狸", skills: [{ name: "青芒", description: "释放三道刀芒逼退近身敌人。" }] }],
+    }));
+    expect(JSON.stringify(createDirectorPlanJob.mock.calls[0][0])).not.toContain("这段很长");
   });
 
   it("applies a completed plan without overwriting asset reference images", async () => {
