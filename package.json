@@ -9,6 +9,7 @@
     "dev:api": "tsx watch server/index.ts",
     "dev:local": "concurrently -k \"npm:dev:api\" \"npm:dev:web\"",
     "build": "vite build",
+    "build:pages": "vite build --mode pages",
     "preview": "vite preview",
     "start:local": "tsx server/index.ts",
     "test": "vitest"
