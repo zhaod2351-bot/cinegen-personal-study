@@ -79,6 +79,7 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
         model: provider.model,
         prompt: buildDirectorPlanPrompt(input),
         schemaName: "director_plan",
+        preferJsonSchema: isOfficialOpenAiBaseUrl(provider.baseUrl),
       });
       const content = response.choices[0]?.message?.content;
       if (!content) throw new Error("OpenAI returned an empty director plan");
@@ -98,6 +99,7 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
         model: provider.model,
         prompt: `${buildDirectorPlanPrompt(input)}\n\n上一次输出未通过格式校验。只修复结构、重复 ID、重复素材名称和无效引用，不添加新剧情。上一次输出：\n${JSON.stringify(invalidOutput)}`,
         schemaName: "director_plan_repair",
+        preferJsonSchema: isOfficialOpenAiBaseUrl(provider.baseUrl),
       });
       const content = response.choices[0]?.message?.content;
       if (!content) throw new Error("OpenAI returned an empty repaired director plan");
@@ -173,13 +175,20 @@ export function parseProviderJson(content: string): unknown {
 
 async function createStructuredCompletion(
   client: OpenAI,
-  input: { model: string; prompt: string; schemaName: string },
+  input: { model: string; prompt: string; schemaName: string; preferJsonSchema: boolean },
 ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
   const common = {
     model: input.model,
     stream: false as const,
+    max_completion_tokens: 6_000,
     messages: [{ role: "user" as const, content: input.prompt }],
   };
+  if (!input.preferJsonSchema) {
+    return await client.chat.completions.create({
+      ...common,
+      response_format: { type: "json_object" },
+    } as Parameters<typeof client.chat.completions.create>[0]) as OpenAI.Chat.Completions.ChatCompletion;
+  }
   try {
     return await client.chat.completions.create({
       ...common,
@@ -199,6 +208,14 @@ async function createStructuredCompletion(
       ...common,
       response_format: { type: "json_object" },
     } as Parameters<typeof client.chat.completions.create>[0]) as OpenAI.Chat.Completions.ChatCompletion;
+  }
+}
+
+function isOfficialOpenAiBaseUrl(baseUrl: string): boolean {
+  try {
+    return new URL(baseUrl).hostname.toLowerCase() === "api.openai.com";
+  } catch {
+    return false;
   }
 }
 

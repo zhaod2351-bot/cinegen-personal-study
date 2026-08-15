@@ -98,6 +98,23 @@ describe("JobRunner", () => {
     expect((await store.get(job.id))?.status).toBe("completed");
   });
 
+  it("does not automatically retry a billed text request after a provider failure", async () => {
+    let attempts = 0;
+    const gateway: AiGateway = {
+      async createDirectorPlan() {
+        attempts += 1;
+        throw Object.assign(new Error("provider failed after generation"), { status: 503 });
+      },
+      async generateStoryboard() { return { image: Buffer.from("unused"), model: "unused" }; },
+    };
+    const { store, runner } = await setup(gateway);
+    const job = await runner.runDirectorPlan(directorInput);
+    await runner.waitFor(job.id);
+
+    expect(attempts).toBe(1);
+    expect((await store.get(job.id))?.status).toBe("failed");
+  });
+
   it("rejects new work while the configured concurrency limit is full", async () => {
     let release!: () => void;
     const blocked = new Promise<void>((resolve) => { release = resolve; });

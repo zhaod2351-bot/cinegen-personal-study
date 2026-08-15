@@ -204,13 +204,20 @@ describe("OpenAIGateway", () => {
       maxRetries: 0,
     }]);
     expect(completionInputs).toEqual([
-      expect.objectContaining({ model: "text-model" }),
+      expect.objectContaining({
+        model: "text-model",
+        max_completion_tokens: 6_000,
+        response_format: { type: "json_object" },
+      }),
     ]);
   });
 
   it("falls back to JSON object mode when a compatible provider rejects JSON schema", async () => {
     const completionInputs: Array<{ response_format?: { type?: string } }> = [];
-    const gateway = new OpenAIGateway(async () => settings, () => ({
+    const gateway = new OpenAIGateway(async () => ({
+      ...settings,
+      text: { ...settings.text, baseUrl: "https://api.openai.com/v1" },
+    }), () => ({
       chat: {
         completions: {
           create: async (request: { response_format?: { type?: string } }) => {

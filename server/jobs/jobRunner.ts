@@ -107,7 +107,9 @@ export class JobRunner {
     await this.options.store.update(id, { status: "in_progress", progress: 15 });
     try {
       const gateway = await this.captureGateway();
-      const raw = await this.withTransientRetries(() => gateway.createDirectorPlan(input));
+      // Text generation can consume thousands of billed tokens even when a
+      // relay ultimately reports a 5xx. Never repeat it automatically.
+      const raw = await gateway.createDirectorPlan(input);
       let plan: DirectorPlan;
       try {
         plan = validateDirectorPlan(raw);
