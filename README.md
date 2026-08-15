@@ -59,7 +59,7 @@
 
 ## 快速开始
 
-1.  **启动本机服务**: 执行 `npm install` 和 `npm run dev:local`，然后打开 `http://localhost:3000`。
+1.  **启动本机服务**: Windows 可直接双击项目根目录的 `一键启动CineGen.cmd`；也可手动执行 `npm install` 和 `npm run dev:local`，然后打开 `http://localhost:3000`。
 2.  **独立配置服务**: 在“系统设置”中分别保存文本和图片服务的 Base URL、模型名与 API Key；可先测试连接。不要把 Key 放入浏览器或项目代码。
 3.  **故事输入**: 在 Phase 01 输入你的故事创意，点击“AI 剧本分析”。
 4.  **美术设定与分镜制作**: 确认剧本后，进入导演工作台生成和管理故事板版本。
