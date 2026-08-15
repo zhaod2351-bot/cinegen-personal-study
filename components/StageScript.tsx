@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { AlertCircle, BookOpen, CheckCircle2, LoaderCircle, Lock, Sparkles, X } from "lucide-react";
 import type { DirectorPlan } from "../server/types";
 import { createDirectorPlanJob, pollAiJob, retryAiJob } from "../services/aiApiService";
+import { getAiSettings, saveAiSettings, type PublicProviderSettings } from "../services/aiSettingsService";
 import type { Character, ProjectState, PropAsset, Scene, ScriptData, Shot } from "../types";
 
 interface Props {
@@ -12,6 +13,13 @@ interface Props {
 
 type View = "source" | "breakdown";
 
+const textModelChoices = [
+  { value: "gpt-5.6-sol", label: "GPT-5.6 Sol（高质量）" },
+  { value: "gpt-5.6-terra", label: "GPT-5.6 Terra（平衡）" },
+  { value: "gpt-5.6-luna", label: "GPT-5.6 Luna（快速）" },
+  { value: "gpt-5.5", label: "GPT-5.5" },
+];
+
 const StageScript: React.FC<Props> = ({ project, updateProject, onOpenAssets }) => {
   const [view, setView] = useState<View>(project.scriptData ? "breakdown" : "source");
   const [script, setScript] = useState(project.rawScript);
@@ -19,9 +27,33 @@ const StageScript: React.FC<Props> = ({ project, updateProject, onOpenAssets }) 
   const [status, setStatus] = useState<"idle" | "running" | "failed">("idle");
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
+  const [textProvider, setTextProvider] = useState<PublicProviderSettings | null>(null);
+  const [modelNotice, setModelNotice] = useState("");
+  const [savingModel, setSavingModel] = useState(false);
   const resumedJob = useRef<string | null>(null);
 
   useEffect(() => setScript(project.rawScript), [project.id, project.rawScript]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getAiSettings(controller.signal).then((settings) => setTextProvider(settings.text)).catch(() => undefined);
+    return () => controller.abort();
+  }, []);
+
+  const selectTextModel = async (model: string) => {
+    if (!textProvider || model === textProvider.model) return;
+    setSavingModel(true);
+    setModelNotice("正在保存模型……");
+    try {
+      const settings = await saveAiSettings({ text: { baseUrl: textProvider.baseUrl, model } });
+      setTextProvider(settings.text);
+      setModelNotice(`已选择 ${model}`);
+    } catch (cause) {
+      setModelNotice(cause instanceof Error ? cause.message : "模型保存失败");
+    } finally {
+      setSavingModel(false);
+    }
+  };
 
   const monitorJob = async (jobId: string) => {
     setStatus("running");
@@ -109,11 +141,13 @@ const StageScript: React.FC<Props> = ({ project, updateProject, onOpenAssets }) 
             镜头剧本
           </button>
         </div>
-        <div className="flex items-center gap-3">{project.scriptData && <button onClick={onOpenAssets} className="rounded-md border border-[#d8cbbb] bg-white px-5 py-3 text-sm font-semibold">进入工作台</button>}<button onClick={analyze} disabled={status === "running"} className="flex items-center gap-2 rounded-md bg-[#c4510a] px-5 py-3 text-sm font-semibold text-white shadow-sm disabled:opacity-60">
+        <div className="flex items-center gap-3"><label className="flex items-center gap-2 text-xs text-[#75685d]"><span>文本模型</span><select aria-label="剧本分析模型" value={textProvider?.model || ""} disabled={!textProvider || savingModel || status === "running"} onChange={(event) => void selectTextModel(event.target.value)} className="h-11 rounded-md border border-[#d8cbbb] bg-white px-3 text-sm text-[#3d3129] disabled:opacity-50">{!textProvider && <option value="">读取中……</option>}{textProvider && !textModelChoices.some((item) => item.value === textProvider.model) && <option value={textProvider.model}>{textProvider.model}（自定义）</option>}{textModelChoices.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>{project.scriptData && <button onClick={onOpenAssets} className="rounded-md border border-[#d8cbbb] bg-white px-5 py-3 text-sm font-semibold">进入工作台</button>}<button onClick={analyze} disabled={status === "running" || savingModel} className="flex items-center gap-2 rounded-md bg-[#c4510a] px-5 py-3 text-sm font-semibold text-white shadow-sm disabled:opacity-60">
           {status === "running" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
           AI 剧本分析
         </button></div>
       </header>
+
+      {modelNotice && <div role="status" className="border-b border-[#e6d5bd] bg-[#fff8eb] px-8 py-2 text-xs text-[#7d5a3d]">{modelNotice}</div>}
 
       {status === "running" && (
         <div className="border-b border-[#e6d5bd] bg-[#fff1d7] px-8 py-3 text-sm text-[#8a4a18]">

@@ -9,10 +9,16 @@ import StageScript, { convertDirectorPlan } from "./StageScript";
 const createDirectorPlanJob = vi.fn();
 const pollAiJob = vi.fn();
 const retryAiJob = vi.fn();
+const getAiSettings = vi.fn();
+const saveAiSettings = vi.fn();
 vi.mock("../services/aiApiService", () => ({
   createDirectorPlanJob: (...args: unknown[]) => createDirectorPlanJob(...args),
   pollAiJob: (...args: unknown[]) => pollAiJob(...args),
   retryAiJob: (...args: unknown[]) => retryAiJob(...args),
+}));
+vi.mock("../services/aiSettingsService", () => ({
+  getAiSettings: (...args: unknown[]) => getAiSettings(...args),
+  saveAiSettings: (...args: unknown[]) => saveAiSettings(...args),
 }));
 
 const project: ProjectState = {
@@ -63,6 +69,26 @@ describe("StageScript GPT workflow", () => {
     createDirectorPlanJob.mockReset().mockResolvedValue({ jobId: "job-1", status: "queued" });
     pollAiJob.mockReset();
     retryAiJob.mockReset().mockResolvedValue({ jobId: "job-retry", status: "queued" });
+    getAiSettings.mockReset().mockResolvedValue({
+      text: { baseUrl: "https://relay.example/v1", model: "gpt-5.5", hasKey: true, keyMask: "sk-****" },
+      image: { baseUrl: "https://relay.example/v1", model: "gpt-image-2", hasKey: false, keyMask: null },
+    });
+    saveAiSettings.mockReset().mockImplementation(async ({ text }: { text: { baseUrl: string; model: string } }) => ({
+      text: { ...text, hasKey: true, keyMask: "sk-****" },
+      image: { baseUrl: "https://relay.example/v1", model: "gpt-image-2", hasKey: false, keyMask: null },
+    }));
+  });
+
+  it("selects and saves the text model beside the analysis action", async () => {
+    render(<StageScript project={{ ...project, scriptData: null }} updateProject={vi.fn()} />);
+    const selector = await screen.findByRole("combobox", { name: "剧本分析模型" });
+
+    fireEvent.change(selector, { target: { value: "gpt-5.6-terra" } });
+
+    await waitFor(() => expect(saveAiSettings).toHaveBeenCalledWith({
+      text: { baseUrl: "https://relay.example/v1", model: "gpt-5.6-terra" },
+    }));
+    expect(await screen.findByRole("status")).toHaveTextContent("已选择 gpt-5.6-terra");
   });
 
   it("opens the asset workspace from a locked script", () => {
