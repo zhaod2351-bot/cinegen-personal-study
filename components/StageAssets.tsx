@@ -760,7 +760,7 @@ const StageAssets: React.FC<Props> = ({
         </main>
       </div>
       {notice && (
-        <div className="fixed right-6 top-24 z-[140] max-w-xl rounded-md bg-[#2d251f] px-4 py-3 text-sm text-white shadow-xl" role="status">
+        <div className="fixed bottom-16 right-6 z-[140] max-w-sm rounded-md border border-[#dfcfb9] bg-[#fff8eb] px-4 py-3 text-sm text-[#6f4c31] shadow-lg" role="status">
           {notice}
         </div>
       )}
