@@ -2,7 +2,7 @@ import OpenAI, { toFile } from "openai";
 import { describe, expect, it, vi } from "vitest";
 import type { RuntimeAiSettings } from "./settings/types";
 import type { DirectorPlanInput, StoryboardInput } from "./types";
-import { downloadGeneratedImage, OpenAIGateway } from "./openaiGateway";
+import { downloadGeneratedImage, OpenAIGateway, parseProviderJson } from "./openaiGateway";
 
 const settings: RuntimeAiSettings = {
   text: {
@@ -54,6 +54,18 @@ const storyboardInput: StoryboardInput = {
 };
 
 describe("OpenAIGateway", () => {
+  it.each([
+    ["plain JSON", '{"summary":"plain"}', { summary: "plain" }],
+    ["JSON Markdown fence", '```json\n{"summary":"fenced"}\n```', { summary: "fenced" }],
+    ["relay explanation", '以下是结果：\n{"summary":"explained"}', { summary: "explained" }],
+  ])("parses %s returned by compatible relays", (_name, content, expected) => {
+    expect(parseProviderJson(content)).toEqual(expected);
+  });
+
+  it("rejects relay output without a complete JSON object", () => {
+    expect(() => parseProviderJson("生成完成，但没有 JSON。")).toThrow("invalid JSON");
+  });
+
   it("tests a supplied text provider with a minimal non-creative request", async () => {
     const factoryInputs: Array<{ apiKey: string; baseURL: string }> = [];
     const completionInputs: unknown[] = [];

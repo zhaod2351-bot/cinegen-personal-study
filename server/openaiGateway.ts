@@ -82,7 +82,7 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
       });
       const content = response.choices[0]?.message?.content;
       if (!content) throw new Error("OpenAI returned an empty director plan");
-      return JSON.parse(content) as unknown;
+      return parseProviderJson(content);
     } catch (error) {
       throw sanitizedProviderError("Text", error);
     }
@@ -101,7 +101,7 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
       });
       const content = response.choices[0]?.message?.content;
       if (!content) throw new Error("OpenAI returned an empty repaired director plan");
-      return JSON.parse(content) as unknown;
+      return parseProviderJson(content);
     } catch (error) {
       throw sanitizedProviderError("Text", error);
     }
@@ -147,6 +147,27 @@ export class OpenAIGateway implements AiGateway, AiConnectionTester {
     } catch (error) {
       throw sanitizedProviderError("Image", error);
     }
+  }
+}
+
+export function parseProviderJson(content: string): unknown {
+  const trimmed = content.trim();
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    // OpenAI-compatible relays commonly wrap an otherwise valid JSON response
+    // in a Markdown fence even when JSON mode was requested.
+    const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed)?.[1];
+    if (fenced) return JSON.parse(fenced) as unknown;
+
+    // Some relays prepend a short explanation. Only accept a single complete
+    // top-level object; validation later still enforces the director schema.
+    const firstBrace = trimmed.indexOf("{");
+    const lastBrace = trimmed.lastIndexOf("}");
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      return JSON.parse(trimmed.slice(firstBrace, lastBrace + 1)) as unknown;
+    }
+    throw new Error("Text provider returned invalid JSON");
   }
 }
 
